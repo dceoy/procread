@@ -1,0 +1,22 @@
+box:
+  id: wercker-base:python
+  entrypoint: /bin/bash -c
+test:
+  steps:
+    - script:
+        name: Test installation
+        code: |
+          pip install -U .
+    - script:
+        name: Test the command
+        code: |
+          procread --version
+          procread --help
+    - script:
+        name: Validate the codes using flake8
+        code: |
+          find . -name '*.py' | xargs flake8
+  after-steps:
+    - slack-notifier:
+        url: $SLACK_WEBHOOK_URL
+        channel: $SLACK_CHANNEL
