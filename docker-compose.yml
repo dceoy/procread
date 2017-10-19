@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  procread:
+    container_name: procread
+    build:
+      context: .
+      args:
+        http_proxy: ${http_proxy}   # for apt
+        https_proxy: ${https_proxy} # for pip
+    user: ${UID}:${GID}
+    image: dceoy/procread:latest
+    volumes:
+      - .:/work
+    working_dir: /work
