@@ -10,7 +10,8 @@ setup(
     packages=find_packages(),
     install_requires=[
         'docopt',
-        'luigi'
+        'luigi',
+        'pyyaml'
     ],
     entry_points={
         'console_scripts': ['procread=procread.main:main']

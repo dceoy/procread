@@ -4,7 +4,7 @@ Run read-to-variant pipelines for DNA-seq analyses
 
 Usage:
     procread init [--debug] [--file=<yaml>]
-    procread trim [--debug] [--file=<yaml>]
+    procread run [--debug] [--file=<yaml>]
     procread -h|--help
     procread -v|--version
 
@@ -16,13 +16,13 @@ Options:
 
 Commands:
     init            Generate a YAML template for configuration
-    trim            Trim adapter sequences in reads
+    run             Run a variant calling pipeline
 """
 
 import logging
 import os
 from docopt import docopt
-from .. import __version__
+from . import __version__
 from .util import set_log_config, set_config_yml, write_config_yml, read_yaml
 
 
@@ -35,7 +35,7 @@ def main():
     if args['init']:
         logging.debug('Initiation')
         write_config_yml(path=config_yml)
-    else:
+    elif args['run']:
         logging.debug('config_yml: {}'.format(config_yml))
         config = read_yaml(path=config_yml)
-        print(config)
+        logging.debug('config:{0}{1}'.format(os.linesep, config))
