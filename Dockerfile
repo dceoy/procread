@@ -1,10 +1,10 @@
 FROM ubuntu:zesty
 
-ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD https://github.com/lh3/bwa/archive/master.tar.gz /tmp/bwa.tar.gz
 ADD https://github.com/samtools/htslib/archive/master.tar.gz /tmp/htslib.tar.gz
 ADD https://github.com/samtools/samtools/archive/master.tar.gz /tmp/samtools.tar.gz
 ADD https://github.com/samtools/bcftools/archive/master.tar.gz /tmp/bcftools.tar.gz
+ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/procread
 
 RUN set -e \
@@ -15,9 +15,6 @@ RUN set -e \
       && apt-get -y upgrade \
       && apt-get -y install autoconf gcc libbz2-dev liblzma-dev libncurses5-dev libz-dev make pigz python3.6 \
       && apt-get clean
-
-RUN set -e \
-      && python3.6 /tmp/get-pip.py
 
 RUN set -e \
       && tar xvf /tmp/bwa.tar.gz -C /usr/local/src \
@@ -54,6 +51,8 @@ RUN set -e \
       && make install
 
 RUN set -e \
+      && ln -s /usr/bin/python3.6 /usr/local/bin/python3 \
+      && /usr/local/bin/python3 /tmp/get-pip.py \
       && pip install -U --no-cache-dir pip \
       && pip install -U --no-cache-dir /tmp/procread \
       && rm -rf /tmp/*

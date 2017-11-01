@@ -9,8 +9,8 @@ setup(
     version=__version__,
     packages=find_packages(),
     install_requires=[
+        'biopython',
         'docopt',
-        'luigi',
         'pyyaml'
     ],
     entry_points={

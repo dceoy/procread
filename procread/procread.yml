@@ -1,0 +1,12 @@
+fastq:
+  foreground:
+    read1: ./foreground_read1.fastq.gz
+    read2: ./foreground_read2.fastq.gz
+  background:
+    read1: ./background_read1.fastq.gz
+    read2: ./background_read2.fastq.gz
+adapter:
+  5prime: AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT
+  3prime: GATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG
+reference:
+  fasta: ./reference.fa.gz

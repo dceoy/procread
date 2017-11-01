@@ -1,7 +1,13 @@
 #!/usr/bin/env python
 
-import luigi
+
+def trim_adapters(config):
+    pass
 
 
-class AlignReads(luigi.Task):
+def map_reads(config):
+    pass
+
+
+def call_variants(config):
     pass

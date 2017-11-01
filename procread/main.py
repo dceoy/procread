@@ -3,8 +3,11 @@
 Run read-to-variant pipelines for DNA-seq analyses
 
 Usage:
-    procread init [--debug] [--file=<yaml>]
-    procread run [--debug] [--file=<yaml>]
+    procread init [--debug] [--file=<yaml>] [--work=<dir>]
+    procread trim [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
+    procread map [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
+    procread call [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
+    procread run [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread -h|--help
     procread -v|--version
 
@@ -13,9 +16,14 @@ Options:
     -v, --version   Print version and exit
     --debug         Execute a command with debug messages
     --file=<yaml>   Set a path to a YAML for configurations [$PROCREAD_YML]
+    --cpus=<int>    Limit CPU cores for use
+    --work=<dir>    Set a working directory [default: .]
 
 Commands:
     init            Generate a YAML template for configuration
+    trim            Trim adapter sequences in reads
+    map             Map reads to a reference
+    call            Call SNVs/indels
     run             Run a variant calling pipeline
 """
 
@@ -24,6 +32,7 @@ import os
 from docopt import docopt
 from . import __version__
 from .util import set_log_config, set_config_yml, write_config_yml, read_yaml
+from .task import trim_adapters, map_reads, call_variants
 
 
 def main():
@@ -35,7 +44,17 @@ def main():
     if args['init']:
         logging.debug('Initiation')
         write_config_yml(path=config_yml)
-    elif args['run']:
+    else:
         logging.debug('config_yml: {}'.format(config_yml))
         config = read_yaml(path=config_yml)
         logging.debug('config:{0}{1}'.format(os.linesep, config))
+        if args['trim']:
+            trim_adapters(config=config)
+        elif args['map']:
+            map_reads(config=config)
+        elif args['call']:
+            call_variants(config=config)
+        elif args['run']:
+            trim_adapters(config=config)
+            map_reads(config=config)
+            call_variants(config=config)
