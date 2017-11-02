@@ -1,5 +1,6 @@
 FROM ubuntu:zesty
 
+ADD http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.5.zip /tmp/fastqc.zip
 ADD https://github.com/lh3/bwa/archive/master.tar.gz /tmp/bwa.tar.gz
 ADD https://github.com/samtools/htslib/archive/master.tar.gz /tmp/htslib.tar.gz
 ADD https://github.com/samtools/samtools/archive/master.tar.gz /tmp/samtools.tar.gz
@@ -13,8 +14,14 @@ RUN set -e \
 RUN set -e \
       && apt-get -y update \
       && apt-get -y upgrade \
-      && apt-get -y install autoconf gcc libbz2-dev liblzma-dev libncurses5-dev libz-dev make pigz python3.6 \
+      && apt-get -y install autoconf default-jre gcc libbz2-dev liblzma-dev libncurses5-dev \
+                            libz-dev make pigz python3.6 unzip \
       && apt-get clean
+
+RUN set -e \
+      && unzip -d /usr/local/src /tmp/fastqc.zip \
+      && chmod +x /usr/local/src/FastQC/fastqc \
+      && ln -s /usr/local/src/FastQC/fastqc /usr/local/bin/fastqc
 
 RUN set -e \
       && tar xvf /tmp/bwa.tar.gz -C /usr/local/src \

@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 
+def do_qc_checks(config):
+    pass
+
+
 def trim_adapters(config):
     pass
 

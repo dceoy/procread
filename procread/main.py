@@ -4,6 +4,7 @@ Run read-to-variant pipelines for DNA-seq analyses
 
 Usage:
     procread init [--debug] [--file=<yaml>] [--work=<dir>]
+    procread qc [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread trim [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread map [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread call [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
@@ -21,6 +22,7 @@ Options:
 
 Commands:
     init            Generate a YAML template for configuration
+    qc              Do quality control checks
     trim            Trim adapter sequences in reads
     map             Map reads to a reference
     call            Call SNVs/indels
@@ -32,7 +34,7 @@ import os
 from docopt import docopt
 from . import __version__
 from .util import set_log_config, set_config_yml, write_config_yml, read_yaml
-from .task import trim_adapters, map_reads, call_variants
+from .task import do_qc_checks, trim_adapters, map_reads, call_variants
 
 
 def main():
@@ -48,7 +50,9 @@ def main():
         logging.debug('config_yml: {}'.format(config_yml))
         config = read_yaml(path=config_yml)
         logging.debug('config:{0}{1}'.format(os.linesep, config))
-        if args['trim']:
+        if args['qc']:
+            do_qc_checks(config=config)
+        elif args['trim']:
             trim_adapters(config=config)
         elif args['map']:
             map_reads(config=config)
