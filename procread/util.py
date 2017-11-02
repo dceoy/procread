@@ -3,6 +3,7 @@
 import logging
 import os
 import shutil
+import subprocess
 import yaml
 
 
@@ -41,3 +42,10 @@ def write_config_yml(path):
                                      'procread.yml'),
                         path)
         print('A YAML template was generated: {}'.format(path))
+
+
+def bash(args, stdout=None, stderr=None, executable='/bin/bash'):
+    return subprocess.run(
+        args, stdout=stdout, stderr=stderr, shell=True, check=True,
+        executable=executable
+    )

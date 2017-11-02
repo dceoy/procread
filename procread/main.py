@@ -30,6 +30,7 @@ Commands:
 """
 
 import logging
+from multiprocessing import cpu_count
 import os
 from docopt import docopt
 from . import __version__
@@ -50,15 +51,21 @@ def main():
         logging.debug('config_yml: {}'.format(config_yml))
         config = read_yaml(path=config_yml)
         logging.debug('config:{0}{1}'.format(os.linesep, config))
+
+        wd = args['--work']
+        cpus = int(args['--cpus']) if args['--cpus'] else cpu_count()
+        logging.debug('working dir: {}'.format(wd))
+        os.makedirs(wd, exist_ok=True)
+
         if args['qc']:
-            do_qc_checks(config=config)
+            do_qc_checks(config=config, work_dir=wd, cpus=cpus)
         elif args['trim']:
-            trim_adapters(config=config)
+            trim_adapters(config=config, work_dir=wd, cpus=cpus)
         elif args['map']:
-            map_reads(config=config)
+            map_reads(config=config, work_dir=wd, cpus=cpus)
         elif args['call']:
-            call_variants(config=config)
+            call_variants(config=config, work_dir=wd, cpus=cpus)
         elif args['run']:
-            trim_adapters(config=config)
-            map_reads(config=config)
-            call_variants(config=config)
+            trim_adapters(config=config, work_dir=wd, cpus=cpus)
+            map_reads(config=config, work_dir=wd, cpus=cpus)
+            call_variants(config=config, work_dir=wd, cpus=cpus)
