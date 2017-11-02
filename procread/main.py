@@ -16,7 +16,7 @@ Options:
     -h, --help      Print help and exit
     -v, --version   Print version and exit
     --debug         Execute a command with debug messages
-    --file=<yaml>   Set a path to a YAML for configurations [$PROCREAD_YML]
+    --file=<yaml>   Set a path to a configuration YAML [default: ./pread.yml]
     --cpus=<int>    Limit CPU cores for use
     --work=<dir>    Set a working directory [default: .]
 
@@ -34,7 +34,7 @@ from multiprocessing import cpu_count
 import os
 from docopt import docopt
 from . import __version__
-from .util import set_log_config, set_config_yml, write_config_yml, read_yaml
+from .util import dump_yaml, read_yaml, set_log_config, write_config_yml
 from .task import do_qc_checks, trim_adapters, map_reads, call_variants
 
 
@@ -42,15 +42,13 @@ def main():
     args = docopt(__doc__, version='procread {}'.format(__version__))
     set_log_config(debug=args['--debug'])
     logging.debug('args:{0}{1}'.format(os.linesep, args))
-    config_yml = set_config_yml(path=args['--file'])
 
     if args['init']:
         logging.debug('Initiation')
-        write_config_yml(path=config_yml)
+        write_config_yml(path=args['--file'])
     else:
-        logging.debug('config_yml: {}'.format(config_yml))
-        config = read_yaml(path=config_yml)
-        logging.debug('config:{0}{1}'.format(os.linesep, config))
+        config = read_yaml(path=args['--file'])
+        logging.debug('config:{0}{1}'.format(os.linesep, dump_yaml(config)))
 
         wd = args['--work']
         cpus = int(args['--cpus']) if args['--cpus'] else cpu_count()

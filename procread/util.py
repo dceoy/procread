@@ -27,24 +27,19 @@ def dump_yaml(dict, flow=False):
     return yaml.dump(dict, default_flow_style=flow)
 
 
-def set_config_yml(path=None, env='PROCREAD_YML', default='procread.yml'):
-    return(os.path.expanduser(tuple(filter(
-        lambda p: p is not None, [path, os.getenv(env), default]
-    ))[0]))
-
-
 def write_config_yml(path):
     if os.path.exists(path):
         print('The file already exists: {}'.format(path))
     else:
         logging.debug('Write {}'.format(path))
-        shutil.copyfile(os.path.join(os.path.dirname(__file__),
-                                     'procread.yml'),
-                        path)
+        shutil.copyfile(
+            os.path.join(os.path.dirname(__file__), 'pread.yml'), path
+        )
         print('A YAML template was generated: {}'.format(path))
 
 
-def bash(args, stdout=None, stderr=None, executable='/bin/bash'):
+def sh_c(args, stdout=None, stderr=None, executable='/bin/bash'):
+    logging.debug('sh_c:{0}{1}'.format(os.linesep, args))
     return subprocess.run(
         args, stdout=stdout, stderr=stderr, shell=True, check=True,
         executable=executable
