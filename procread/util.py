@@ -7,6 +7,35 @@ import subprocess
 import yaml
 
 
+class Shell:
+    def __init__(self, log_txt=None, quiet=False, executable='/bin/bash'):
+        self.executable = executable
+        self.log_txt = log_txt
+        self.quiet = quiet
+        if log_txt:
+            logging.debug('Write a log file: {}'.format(log_txt))
+            with open(log_txt, 'w') as f:
+                f.write('# shell: {0}{1}'.format(executable, os.linesep))
+            self.post_proc = (
+                ' >> {} 2>&1'.format(log_txt) if quiet
+                else ' 2>&1 | tee -a {}'.format(log_txt)
+            )
+        else:
+            self.post_proc = ' > /dev/null 2>&1' if quiet else ''
+
+    def run(self, arg_str, prompt=None):
+        cmd = arg_str + self.post_proc
+        pr = prompt or '[{}] $'.format(os.getcwd())
+        logging.debug('shell:{0}{1} {2}'.format(os.linesep, pr, cmd))
+        if self.log_txt:
+            with open(self.log_txt, 'a') as f:
+                f.write('{0}{1} {2}{0}'.format(os.linesep, pr, cmd))
+        return subprocess.run(
+            cmd, executable=self.executable, stdout=None, stderr=None,
+            shell=True, check=True
+        )
+
+
 class ProcreadError(Exception):
     pass
 
@@ -36,11 +65,3 @@ def write_config_yml(path):
             os.path.join(os.path.dirname(__file__), 'pread.yml'), path
         )
         print('A YAML template was generated: {}'.format(path))
-
-
-def sh_c(args, stdout=None, stderr=None, executable='/bin/bash'):
-    logging.debug('sh_c:{0}{1}'.format(os.linesep, args))
-    return subprocess.run(
-        args, stdout=stdout, stderr=stderr, shell=True, check=True,
-        executable=executable
-    )

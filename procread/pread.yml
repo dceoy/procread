@@ -10,3 +10,9 @@ adapter:
   3prime: GATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG
 reference:
   fasta: ./reference.fa.gz
+command_args:
+  fastqc:
+    - --nogroup
+  cutadapt:
+    - --overlap 4
+    - --error-rate 0.1
