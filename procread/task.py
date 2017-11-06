@@ -9,16 +9,16 @@ from .util import Shell, ProcreadRuntimeError
 
 def prepare_paths(config, work_dir, cpus):
     logging.info('Prepare paths to directories and files')
-
-    # ToDo: validate_input_formats()
-
     dir_dict = {
         d: os.path.join(work_dir, d)
         for d in ['input', 'qc', 'trim', 'map', 'call']
     }
+
     for d in [work_dir, dir_dict['input']]:
         os.makedirs(d, exist_ok=True)
     sh = Shell(log_txt=os.path.join(dir_dict['input'], 'command_log.txt'))
+    for c in ['pigz', 'pbzip2']:
+        sh.run('{} --version'.format(c))
 
     fq_dict = {
         '{0}_{1}'.format(t, r):
@@ -33,8 +33,11 @@ def prepare_paths(config, work_dir, cpus):
         for t, r in product(['foreground', 'background'], ['read1', 'read2'])
     }
     for t, r in product(['foreground', 'background'], ['read1', 'read2']):
-        fq_src = config['path']['fastq'][t][r]
         fq_gz = fq_dict['{0}_{1}'.format(t, r)]
+        if os.path.isfile(fq_gz):
+            continue
+
+        fq_src = config['path']['fastq'][t][r]
         fq_src_ext = os.path.splitext(fq_src)[1]
         if fq_src_ext in ['.fastq', '.fq']:
             sh.run('pigz -p {0} -c {1} > {2}'.format(
@@ -62,21 +65,22 @@ def prepare_paths(config, work_dir, cpus):
     )
     ref_dict = {'fasta': ref_fa, 'faidx': ref_fa + '.fai'}
     ref_src_ext = os.path.splitext(ref_src)[1]
-    if ref_src_ext in ['.fasta', '.fa']:
-        os.symlink(ref_src, ref_fa)
-    elif ref_src_ext == '.gz':
-        sh.run('pigz -p {0} -dc {1} > {2}'.format(
-            cpus, ref_src, ref_fa
-        ))
-    elif ref_src_ext == '.bz2':
-        sh.run('pbzip2 -p# {0} -dc {1} > {2}'.format(
-            cpus, ref_src, ref_fa
-        ))
-    else:
-        raise ProcreadRuntimeError(
-            'Supported extension for input reference fasta: '
-            '.fa, .fa.gz, .fa.bz2, .fasta, .fasta.gz, .fasta.bz'
-        )
+    if not os.path.isfile(ref_fa):
+        if ref_src_ext in ['.fasta', '.fa']:
+            os.symlink(ref_src, ref_fa)
+        elif ref_src_ext == '.gz':
+            sh.run('pigz -p {0} -dc {1} > {2}'.format(
+                cpus, ref_src, ref_fa
+            ))
+        elif ref_src_ext == '.bz2':
+            sh.run('pbzip2 -p# {0} -dc {1} > {2}'.format(
+                cpus, ref_src, ref_fa
+            ))
+        else:
+            raise ProcreadRuntimeError(
+                'Supported extension for input reference fasta: '
+                '.fa, .fa.gz, .fa.bz2, .fasta, .fasta.gz, .fasta.bz'
+            )
 
     return {
         'dir': dir_dict,
@@ -86,6 +90,9 @@ def prepare_paths(config, work_dir, cpus):
 
 
 def make_ref_index(paths):
+    if os.path.isfile(paths['ref']['faidx']):
+        return
+
     logging.info('Make reference index files')
     sh = Shell(
         log_txt=os.path.join(paths['dir']['input'], 'command_log.txt'),
@@ -100,6 +107,9 @@ def make_ref_index(paths):
 
 
 def do_qc_checks(config, paths, cpus):
+    if os.path.isfile(paths['dir']['qc']):
+        return
+
     logging.info('Do quality control checks for reads')
     os.makedirs(paths['dir']['qc'], exist_ok=True)
     sh = Shell(log_txt=os.path.join(paths['dir']['qc'], 'command_log.txt'))
@@ -116,6 +126,9 @@ def do_qc_checks(config, paths, cpus):
 
 
 def trim_adapters(config, paths):
+    if os.path.isfile(paths['dir']['trim']):
+        return
+
     logging.info('Trim adapter sequences in reads')
     os.makedirs(paths['dir']['trim'], exist_ok=True)
     sh = Shell(log_txt=os.path.join(paths['dir']['trim'], 'command_log.txt'))
@@ -147,10 +160,16 @@ def trim_adapters(config, paths):
 
 
 def map_reads(config, paths, cpus):
+    if os.path.isfile(paths['dir']['map']):
+        return
+
     logging.info('Map reads to a reference')
 
 
 def call_variants(config, paths, cpus):
+    if os.path.isfile(paths['dir']['call']):
+        return
+
     logging.info('Call SNVs/indels')
 
 
