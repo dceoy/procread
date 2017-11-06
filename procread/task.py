@@ -9,12 +9,13 @@ from .util import Shell, ProcreadRuntimeError
 
 def prepare_paths(config, work_dir, cpus):
     logging.info('Prepare paths to directories and files')
+    wd = os.path.abspath(work_dir)
     dir_dict = {
-        d: os.path.join(work_dir, d)
+        d: os.path.join(wd, d)
         for d in ['input', 'qc', 'trim', 'map', 'call']
     }
 
-    for d in [work_dir, dir_dict['input']]:
+    for d in [wd, dir_dict['input']]:
         os.makedirs(d, exist_ok=True)
     sh = Shell(log_txt=os.path.join(dir_dict['input'], 'command_log.txt'))
     for c in ['pigz', 'pbzip2']:
@@ -37,7 +38,7 @@ def prepare_paths(config, work_dir, cpus):
         if os.path.isfile(fq_gz):
             continue
 
-        fq_src = config['path']['fastq'][t][r]
+        fq_src = os.path.abspath(config['path']['fastq'][t][r])
         fq_src_ext = os.path.splitext(fq_src)[1]
         if fq_src_ext in ['.fastq', '.fq']:
             sh.run('pigz -p {0} -c {1} > {2}'.format(
@@ -56,7 +57,7 @@ def prepare_paths(config, work_dir, cpus):
                 '.fq, .fq.gz, .fq.*.gz, .fq.bz2, .fq.*.bz2'
             )
 
-    ref_src = config['path']['fasta']['reference']
+    ref_src = os.path.abspath(config['path']['fasta']['reference'])
     ref_fa = os.path.join(
         dir_dict['input'],
         re.sub(
@@ -107,11 +108,12 @@ def make_ref_index(paths):
 
 
 def do_qc_checks(config, paths, cpus):
-    if os.path.isfile(paths['dir']['qc']):
+    if os.path.isdir(paths['dir']['qc']):
         return
+    else:
+        os.makedirs(paths['dir']['qc'])
 
     logging.info('Do quality control checks for reads')
-    os.makedirs(paths['dir']['qc'], exist_ok=True)
     sh = Shell(log_txt=os.path.join(paths['dir']['qc'], 'command_log.txt'))
     sh.run('fastqc --version')
 
@@ -126,11 +128,12 @@ def do_qc_checks(config, paths, cpus):
 
 
 def trim_adapters(config, paths):
-    if os.path.isfile(paths['dir']['trim']):
+    if os.path.isdir(paths['dir']['trim']):
         return
+    else:
+        os.makedirs(paths['dir']['trim'])
 
     logging.info('Trim adapter sequences in reads')
-    os.makedirs(paths['dir']['trim'], exist_ok=True)
     sh = Shell(log_txt=os.path.join(paths['dir']['trim'], 'command_log.txt'))
     sh.run('cutadapt --version')
 
@@ -159,18 +162,91 @@ def trim_adapters(config, paths):
         )
 
 
-def map_reads(config, paths, cpus):
-    if os.path.isfile(paths['dir']['map']):
+def map_reads(paths, cpus):
+    if os.path.isdir(paths['dir']['map']):
         return
+    else:
+        os.makedirs(paths['dir']['map'])
 
     logging.info('Map reads to a reference')
+    sh = Shell(log_txt=os.path.join(paths['dir']['map'], 'command_log.txt'))
+
+    if os.path.isdir(paths['dir']['trim']):
+        fq_dict = {
+            k: os.path.join(
+                paths['dir']['trim'],
+                re.sub(
+                    r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                    os.path.basename(v)
+                )
+            )
+            for k, v in paths['fastq'].items()
+        }
+    else:
+        fq_dict = paths['fastq']
+
+    bam_dict = {
+        t: {
+            b: os.path.join(paths['dir']['map'], t, '{}.bam'.format(b))
+            for b in ['sort', 'fixmate', 'markdup']
+        }
+        for t in ['foreground', 'background']
+    }
+
+    for t in ['foreground', 'background']:
+        os.makedirs(os.path.join(paths['dir']['map'], t))
+        bd = bam_dict[t]
+        sh.run(
+            'bwa mem -t {0} {1} {2} {3} '
+            '| samtools view -@ {0} -bS - '
+            '| samtools sort -@ {0} -o {4} -'.format(
+                cpus, paths['ref']['fasta'], fq_dict[t + '_read1'],
+                fq_dict[t + '_read2'], bd['sort']
+            )
+        )
+        sh.run(
+            'samtools sort -n -@ {0} {1} '
+            '| samtools fixmate -m - {2}'.format(
+                cpus, bd['sort'], bd['fixmate']
+            )
+        )
+        sh.run(
+            'samtools sort -@ {0} {1} '
+            '| samtools markdup - {2}'.format(
+                cpus, bd['fixmate'], bd['markdup']
+            )
+        )
+        for p in bd.values():
+            sh.run('samtools index {}'.format(p))
 
 
-def call_variants(config, paths, cpus):
-    if os.path.isfile(paths['dir']['call']):
+def call_variants(paths):
+    if os.path.isdir(paths['dir']['call']):
         return
+    else:
+        os.makedirs(paths['dir']['call'])
 
     logging.info('Call SNVs/indels')
+    sh = Shell(log_txt=os.path.join(paths['dir']['call'], 'command_log.txt'))
+
+    bam_name = 'markdup.bam'
+    raw_bcf = os.path.join(paths['dir']['call'], 'raw.bcf')
+    flt_vcf = os.path.join(paths['dir']['call'], 'flt.vcf')
+    sh.run(
+        'samtools mpileup -uf {0} {1} {2} '
+        '| bcftools view -bvcg - > {3}'.format(
+            paths['ref']['fasta'],
+            os.path.join(paths['dir']['map'], 'foreground', bam_name),
+            os.path.join(paths['dir']['map'], 'background', bam_name),
+            raw_bcf
+        )
+    )
+    sh.run(
+        'bcftools view {0} '
+        '| vcfutils.pl varFilter -D100 > {1}'.format(
+            raw_bcf, flt_vcf
+        )
+    )
 
 
 def _cmd_arg_str(config, command):
