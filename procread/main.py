@@ -29,6 +29,7 @@ Commands:
     run             Run a variant calling pipeline
 """
 
+from concurrent.futures import ProcessPoolExecutor
 import logging
 from multiprocessing import cpu_count
 import os
@@ -66,7 +67,24 @@ def main():
         elif args['call']:
             call_variants(config=config, paths=paths, cpus=cpus)
         elif args['run']:
-            trim_adapters(config=config, paths=paths, cpus=cpus)
-            make_ref_index(paths=paths)
+            with ProcessPoolExecutor(max_workers=cpus) as ppe:
+                _qc = ppe.submit(
+                    do_qc_checks,
+                    config=config,
+                    paths=paths,
+                    cpus=(cpus - 2 if cpus > 2 else 1)
+                )
+                _trim = ppe.submit(
+                    trim_adapters,
+                    config=config,
+                    paths=paths,
+                )
+                _ref = ppe.submit(
+                    make_ref_index,
+                    paths=paths
+                )
+            for res in [_qc, _trim, _ref]:
+                logging.debug('{0}{1}'.format(os.linesep, res))
+
             map_reads(config=config, paths=paths, cpus=cpus)
             call_variants(config=config, paths=paths, cpus=cpus)

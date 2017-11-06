@@ -107,12 +107,10 @@ def do_qc_checks(config, paths, cpus):
 
     for t, r in product(['foreground', 'background'], ['read1', 'read2']):
         tag = '{0}_{1}'.format(t, r)
-        qc_fq_dir = os.path.join(paths['dir']['qc'], tag)
-        os.makedirs(qc_fq_dir, exist_ok=True)
         sh.run(
             arg_str='fastqc {0} --threads {1} --outdir {2} {3}'.format(
-                _cmd_arg_str(config, command='fastqc'), cpus, qc_fq_dir,
-                paths['fastq'][tag]
+                _cmd_arg_str(config, command='fastqc'), cpus,
+                paths['dir']['qc'], paths['fastq'][tag]
             )
         )
 
