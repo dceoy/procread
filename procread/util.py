@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
+from itertools import product
 import logging
 import os
+import re
 import shutil
 import subprocess
 import yaml
@@ -27,7 +29,7 @@ class Shell:
         else:
             self.post_proc = ' > /dev/null 2>&1' if quiet else ''
 
-    def run(self, arg_str, prompt=None):
+    def run(self, arg_str, check=True, prompt=None):
         cmd = arg_str + self.post_proc
         pr = prompt or '[{}] $'.format(os.getcwd())
         logging.debug('shell:{0}{1} {2}'.format(os.linesep, pr, cmd))
@@ -36,7 +38,7 @@ class Shell:
                 f.write('{0}{1} {2}{0}'.format(os.linesep, pr, cmd))
         return subprocess.run(
             cmd, executable=self.executable, stdout=None, stderr=None,
-            shell=True, check=True
+            shell=True, check=check
         )
 
 
@@ -48,12 +50,6 @@ def set_log_config(debug=False):
     logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.DEBUG if debug else logging.WARNING)
-
-
-def read_yaml(path):
-    with open(path) as f:
-        d = yaml.load(f)
-    return d
 
 
 def dump_yaml(dict, flow=False):
@@ -69,3 +65,56 @@ def write_config_yml(path):
             os.path.join(os.path.dirname(__file__), 'pread.yml'), path
         )
         print('A YAML template was generated: {}'.format(path))
+
+
+def generate_config(yml_path, work_dir):
+    with open(yml_path) as f:
+        yml_dict = yaml.load(f)
+    wd = os.path.abspath(work_dir)
+    dir_dict = {
+        d: os.path.join(wd, d)
+        for d in ['input', 'qc', 'trim', 'map', 'call']
+    }
+
+    return {
+        'yml': yml_dict,
+        'paths': {
+            'dir': dict([('work', wd)] + list(dir_dict.items())),
+            'fastq': {
+                '{0}_{1}'.format(t, r):
+                os.path.join(
+                    dir_dict['input'],
+                    re.sub(
+                        r'\.(fastq|fq)\.?[^\.]*\.?[^\.]*$',
+                        '.{}.fastq.gz'.format(
+                            {'read1': 'r1', 'read2': 'r2'}[r]
+                        ),
+                        os.path.basename(yml_dict['path']['fastq'][t][r])
+                    )
+                )
+                for t, r
+                in product(['foreground', 'background'], ['read1', 'read2'])
+            },
+            'ref': {
+                f: os.path.join(
+                    dir_dict['input'],
+                    re.sub(
+                        r'\.(fa|fasta)\.?[^\.]*$', e,
+                        os.path.basename(
+                            yml_dict['path']['fasta']['reference']
+                        )
+                    )
+                )
+                for f, e
+                in {'fasta': '.ref.fa', 'faidx': '.ref.fa.fai'}.items()
+            }
+        },
+        'cmd_args': {
+            c: (
+                ' '.join(yml_dict['command_args'][c])
+                if 'command_args' in yml_dict and c in yml_dict['command_args']
+                else ' '
+            )
+            for c in ['fastqc', 'cutadapt']
+        }
+    }
