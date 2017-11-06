@@ -20,7 +20,9 @@ class Shell:
                     f.write('# shell: {0}{1}'.format(executable, os.linesep))
             self.post_proc = (
                 ' >> {} 2>&1'.format(log_txt) if quiet
-                else ' 2>&1 | tee -a {}'.format(log_txt)
+                else ' 2>&1 | tee -a {}'.format(
+                    log_txt
+                ) + ' && exit ${PIPESTATUS[0]}'
             )
         else:
             self.post_proc = ' > /dev/null 2>&1' if quiet else ''

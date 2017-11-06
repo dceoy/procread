@@ -57,6 +57,7 @@ def main():
         paths = prepare_paths(
             config=config, work_dir=args['--work'], cpus=cpus
         )
+        logging.debug('paths:{0}{1}'.format(os.linesep, dump_yaml(paths)))
 
         if args['qc']:
             do_qc_checks(config=config, paths=paths, cpus=cpus)

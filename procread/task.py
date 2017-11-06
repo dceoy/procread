@@ -218,6 +218,7 @@ def map_reads(paths, cpus):
         )
         for p in bd.values():
             sh.run('samtools index {}'.format(p))
+            sh.run('samtools flagstat {0} > {1}.flagstat.txt'.format(p))
 
 
 def call_variants(paths):
