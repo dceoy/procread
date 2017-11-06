@@ -15,7 +15,7 @@ RUN set -e \
       && apt-get -y update \
       && apt-get -y upgrade \
       && apt-get -y install autoconf default-jre gcc libbz2-dev liblzma-dev libncurses5-dev \
-                            libz-dev make pigz python3.6 unzip \
+                            libz-dev make pbzip2 pigz python3.6 unzip \
       && apt-get clean
 
 RUN set -e \

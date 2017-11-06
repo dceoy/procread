@@ -36,7 +36,7 @@ class Shell:
         )
 
 
-class ProcreadError(Exception):
+class ProcreadRuntimeError(Exception):
     pass
 
 

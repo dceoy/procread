@@ -22,7 +22,7 @@ Options:
 
 Commands:
     init            Generate a YAML template for configuration
-    qc              Do quality control checks
+    qc              Do quality control checks for reads
     trim            Trim adapter sequences in reads
     map             Map reads to a reference
     call            Call SNVs/indels
@@ -35,7 +35,8 @@ import os
 from docopt import docopt
 from . import __version__
 from .util import dump_yaml, read_yaml, set_log_config, write_config_yml
-from .task import do_qc_checks, trim_adapters, map_reads, call_variants
+from .task import call_variants, do_qc_checks, map_reads, prepare_paths, \
+                  trim_adapters
 
 
 def main():
@@ -50,20 +51,20 @@ def main():
         config = read_yaml(path=args['--file'])
         logging.debug('config:{0}{1}'.format(os.linesep, dump_yaml(config)))
 
-        wd = args['--work']
         cpus = int(args['--cpus']) if args['--cpus'] else cpu_count()
-        logging.debug('working dir: {}'.format(wd))
-        os.makedirs(wd, exist_ok=True)
+        paths = prepare_paths(
+            config=config, work_dir=args['--work'], cpus=cpus
+        )
 
         if args['qc']:
-            do_qc_checks(config=config, work_dir=wd, cpus=cpus)
+            do_qc_checks(config=config, paths=paths, cpus=cpus)
         elif args['trim']:
-            trim_adapters(config=config, work_dir=wd, cpus=cpus)
+            trim_adapters(config=config, paths=paths, cpus=cpus)
         elif args['map']:
-            map_reads(config=config, work_dir=wd, cpus=cpus)
+            map_reads(config=config, paths=paths, cpus=cpus)
         elif args['call']:
-            call_variants(config=config, work_dir=wd, cpus=cpus)
+            call_variants(config=config, paths=paths, cpus=cpus)
         elif args['run']:
-            trim_adapters(config=config, work_dir=wd, cpus=cpus)
-            map_reads(config=config, work_dir=wd, cpus=cpus)
-            call_variants(config=config, work_dir=wd, cpus=cpus)
+            trim_adapters(config=config, paths=paths, cpus=cpus)
+            map_reads(config=config, paths=paths, cpus=cpus)
+            call_variants(config=config, paths=paths, cpus=cpus)
