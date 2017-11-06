@@ -8,14 +8,16 @@ import yaml
 
 
 class Shell:
-    def __init__(self, log_txt=None, quiet=False, executable='/bin/bash'):
+    def __init__(self, log_txt=None, quiet=False, format_log=True,
+                 executable='/bin/bash'):
         self.executable = executable
         self.log_txt = log_txt
         self.quiet = quiet
         if log_txt:
-            logging.debug('Write a log file: {}'.format(log_txt))
-            with open(log_txt, 'w') as f:
-                f.write('# shell: {0}{1}'.format(executable, os.linesep))
+            if format_log:
+                logging.debug('Write a log file: {}'.format(log_txt))
+                with open(log_txt, 'w') as f:
+                    f.write('# shell: {0}{1}'.format(executable, os.linesep))
             self.post_proc = (
                 ' >> {} 2>&1'.format(log_txt) if quiet
                 else ' 2>&1 | tee -a {}'.format(log_txt)

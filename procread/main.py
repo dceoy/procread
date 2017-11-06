@@ -35,8 +35,8 @@ import os
 from docopt import docopt
 from . import __version__
 from .util import dump_yaml, read_yaml, set_log_config, write_config_yml
-from .task import call_variants, do_qc_checks, map_reads, prepare_paths, \
-                  trim_adapters
+from .task import call_variants, do_qc_checks, map_reads, make_ref_index, \
+                  prepare_paths, trim_adapters
 
 
 def main():
@@ -61,10 +61,12 @@ def main():
         elif args['trim']:
             trim_adapters(config=config, paths=paths, cpus=cpus)
         elif args['map']:
+            make_ref_index(paths=paths)
             map_reads(config=config, paths=paths, cpus=cpus)
         elif args['call']:
             call_variants(config=config, paths=paths, cpus=cpus)
         elif args['run']:
             trim_adapters(config=config, paths=paths, cpus=cpus)
+            make_ref_index(paths=paths)
             map_reads(config=config, paths=paths, cpus=cpus)
             call_variants(config=config, paths=paths, cpus=cpus)

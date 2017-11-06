@@ -7,7 +7,7 @@ import re
 from .util import Shell, ProcreadRuntimeError
 
 
-def prepare_paths(config, work_dir, cpus, contain_ref=True):
+def prepare_paths(config, work_dir, cpus):
     logging.info('Prepare paths to directories and files')
 
     # ToDo: validate_input_formats()
@@ -36,14 +36,14 @@ def prepare_paths(config, work_dir, cpus, contain_ref=True):
         fq_src = config['path']['fastq'][t][r]
         fq_gz = fq_dict['{0}_{1}'.format(t, r)]
         fq_src_ext = os.path.splitext(fq_src)[1]
-        if fq_src_ext == '.gz':
+        if fq_src_ext in ['.fastq', '.fq']:
+            sh.run('pigz -p {0} -c {1} > {2}'.format(
+                cpus, fq_src, fq_gz
+            ))
+        elif fq_src_ext == '.gz':
             os.symlink(fq_src, fq_gz)
         elif fq_src_ext == '.bz2':
             sh.run('pbzip2 -p# {0} -dc {1} | pigz -p {0} -c - > {2}'.format(
-                cpus, fq_src, fq_gz
-            ))
-        elif fq_src_ext == '.fastq':
-            sh.run('pigz -p {0} -c {1} > {2}'.format(
                 cpus, fq_src, fq_gz
             ))
         else:
@@ -62,7 +62,7 @@ def prepare_paths(config, work_dir, cpus, contain_ref=True):
     )
     ref_dict = {'fasta': ref_fa, 'faidx': ref_fa + '.fai'}
     ref_src_ext = os.path.splitext(ref_src)[1]
-    if ref_src_ext in ['fa', 'fasta']:
+    if ref_src_ext in ['.fasta', '.fa']:
         os.symlink(ref_src, ref_fa)
     elif ref_src_ext == '.gz':
         sh.run('pigz -p {0} -dc {1} > {2}'.format(
@@ -78,17 +78,25 @@ def prepare_paths(config, work_dir, cpus, contain_ref=True):
             '.fa, .fa.gz, .fa.bz2, .fasta, .fasta.gz, .fasta.bz'
         )
 
-    if contain_ref:
-        for c in ['samtools', 'bwa']:
-            sh.run(c)
-        sh.run('samtools faidx {}'.format(ref_fa))
-        sh.run('bwa index -p {0} {1}'.format(ref_dict['faidx'], ref_fa))
-
     return {
         'dir': dir_dict,
         'fastq': fq_dict,
         'ref': ref_dict
     }
+
+
+def make_ref_index(paths):
+    logging.info('Make reference index files')
+    sh = Shell(
+        log_txt=os.path.join(paths['dir']['input'], 'command_log.txt'),
+        format_log=False
+    )
+    for c in ['samtools', 'bwa']:
+        sh.run(c)
+    sh.run('samtools faidx {}'.format(paths['ref']['fasta']))
+    sh.run('bwa index -p {0} {1}'.format(
+        paths['ref']['faidx'], paths['ref']['fasta']
+    ))
 
 
 def do_qc_checks(config, paths, cpus):
@@ -109,7 +117,7 @@ def do_qc_checks(config, paths, cpus):
         )
 
 
-def trim_adapters(config, paths, cpus):
+def trim_adapters(config, paths):
     logging.info('Trim adapter sequences in reads')
     os.makedirs(paths['dir']['trim'], exist_ok=True)
     sh = Shell(log_txt=os.path.join(paths['dir']['trim'], 'command_log.txt'))
@@ -124,7 +132,7 @@ def trim_adapters(config, paths, cpus):
             k: os.path.join(
                 paths['dir']['trim'],
                 re.sub(
-                    r'\.fastq\..*$', '.trimmed.{}.fastq.gz'.format(k),
+                    r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
                     os.path.basename(paths['fastq'][v])
                 )
             )
