@@ -1,5 +1,5 @@
 box:
-  id: wercker-base:python
+  id: dceoy/wercker-base:python
   entrypoint: /bin/bash -c
 test:
   steps:
@@ -15,6 +15,7 @@ test:
     - script:
         name: Validate the codes using flake8
         code: |
+          pip install -U flake8
           find . -name '*.py' | xargs flake8
   after-steps:
     - slack-notifier:

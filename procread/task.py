@@ -185,7 +185,7 @@ def map_reads(config, cpus):
             'bwa mem -t {0} {1} {2} {3} '
             '| samtools view -@ {0} -bS - '
             '| samtools sort -@ {0} -o {4} -'.format(
-                cpus, config['paths']['ref']['fasta'], fq_dict[t + '_read1'],
+                cpus, config['paths']['ref']['faidx'], fq_dict[t + '_read1'],
                 fq_dict[t + '_read2'], bd['sort']
             )
         )
