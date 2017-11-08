@@ -29,17 +29,72 @@ class Shell:
         else:
             self.post_proc = ' > /dev/null 2>&1' if quiet else ''
 
-    def run(self, arg_str, check=True, prompt=None):
-        cmd = arg_str + self.post_proc
+    def run(self, args, check=True, prompt=None):
         pr = prompt or '[{}] $'.format(os.getcwd())
-        logging.debug('shell:{0}{1} {2}'.format(os.linesep, pr, cmd))
+        for a in (args if isinstance(args, list) else [args]):
+            cmd = a + self.post_proc
+            logging.debug('shell:{0}{1} {2}'.format(os.linesep, pr, cmd))
+            if self.log_txt:
+                with open(self.log_txt, 'a') as f:
+                    f.write('{0}{1} {2}{0}'.format(os.linesep, pr, cmd))
+            subprocess.run(
+                cmd, executable=self.executable, stdout=None, stderr=None,
+                shell=True, check=check
+            )
+
+    def run_parallel(self, args, check=True, prompt=None):
+        pr = prompt or '[{}] $'.format(os.getcwd())
         if self.log_txt:
-            with open(self.log_txt, 'a') as f:
-                f.write('{0}{1} {2}{0}'.format(os.linesep, pr, cmd))
-        return subprocess.run(
-            cmd, executable=self.executable, stdout=None, stderr=None,
-            shell=True, check=check
-        )
+            tmp_log_txts = [
+                self.log_txt + '.{}'.format(i) for i, a in enumerate(args)
+            ]
+            cmds = [
+                (
+                    a + ' >> {} 2>&1'.format(l)
+                    if self.quiet else
+                    a + ' 2>&1 | tee -a {}'.format(l) +
+                    ' && exit ${PIPESTATUS[0]}'
+                )
+                for a, l in zip(args, tmp_log_txts)
+            ]
+            for c, l in zip(cmds, tmp_log_txts):
+                with open(l, 'w') as f:
+                    f.write('{0}{1} {2}{0}'.format(os.linesep, pr, c))
+        else:
+            cmds = [
+                a + (' > /dev/null 2>&1' if self.quiet else '')
+                for a in args
+            ]
+        logging.debug('shell:{0}{1}'.format(
+            os.linesep, [(pr + ' ' + c + os.linesep) for c in cmds]
+        ))
+        procs = [
+            subprocess.Popen(
+                c, executable=self.executable, stdout=None, stderr=None,
+                shell=True
+            )
+            for i, c in enumerate(cmds)
+        ]
+        try:
+            for p, l in zip(procs, tmp_log_txts):
+                e = p.communicate()[1]
+                with open(self.log_txt, 'a') as lt:
+                    with open(l, 'r') as tlt:
+                        lt.write(tlt.read())
+                os.remove(l)
+                if p.returncode != 0:
+                    logging.error(e)
+                    raise subprocess.CalledProcessError(
+                        'Command \'{0}\' returned non-zero exit status '
+                        '{1}.'.format(p.args, p.returncode)
+                    )
+        except ProcreadRuntimeError as err:
+            for p, l in zip(procs, tmp_log_txts):
+                if not p.returncode:
+                    p.kill()
+                if os.path.isfile(l):
+                    os.remove(l)
+            raise err
 
 
 class ProcreadRuntimeError(Exception):

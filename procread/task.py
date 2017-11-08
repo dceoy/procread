@@ -74,12 +74,13 @@ def make_ref_index(config):
         ),
         format_log=False
     )
-    for c in ['samtools', 'bwa']:
-        sh.run(c, check=False)
-    sh.run('samtools faidx {}'.format(config['paths']['ref']['fasta']))
-    sh.run('bwa index -p {0} {1}'.format(
-        config['paths']['ref']['faidx'], config['paths']['ref']['fasta']
-    ))
+    sh.run(['samtools --version', 'bwa'], check=False)
+    sh.run([
+        'samtools faidx {}'.format(config['paths']['ref']['fasta']),
+        'bwa index -p {0} {1}'.format(
+            config['paths']['ref']['faidx'], config['paths']['ref']['fasta']
+        )
+    ])
 
 
 def do_qc_checks(config, cpus):
@@ -104,7 +105,7 @@ def do_qc_checks(config, cpus):
         )
 
 
-def trim_adapters(config):
+def trim_adapters(config, cpus):
     if os.path.isdir(config['paths']['dir']['trim']):
         return
     else:
@@ -116,31 +117,39 @@ def trim_adapters(config):
     ))
     sh.run('cutadapt --version')
 
-    for t in ['foreground', 'background']:
-        tag_dict = {
-            k: '{0}_{1}'.format(t, r)
-            for k, r in {'r1': 'read1', 'r2': 'read2'}.items()
-        }
-        trimmed_fq = {
-            k: os.path.join(
-                config['paths']['dir']['trim'],
-                re.sub(
-                    r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
-                    os.path.basename(config['paths']['fastq'][v])
+    fq_io = {
+        t: {
+            'in': {
+                k: config['paths']['fastq']['{0}_{1}'.format(t, r)]
+                for k, r in {'r1': 'read1', 'r2': 'read2'}.items()
+            },
+            'out': {
+                k: os.path.join(
+                    config['paths']['dir']['trim'],
+                    re.sub(
+                        r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                        os.path.basename(
+                            config['paths']['fastq']['{0}_{1}'.format(t, r)]
+                        )
+                    )
                 )
-            )
-            for k, v in tag_dict.items()
+                for k, r in {'r1': 'read1', 'r2': 'read2'}.items()
+            }
         }
-        sh.run(
-            'cutadapt {0} -a {1} -A {2} -o {3} -p {4} {5} {6}'.format(
-                config['cmd_args']['cutadapt'],
-                config['yml']['adapter']['3prime'],
-                config['yml']['adapter']['5prime'],
-                trimmed_fq['r1'], trimmed_fq['r2'],
-                config['paths']['fastq'][tag_dict['r1']],
-                config['paths']['fastq'][tag_dict['r2']]
-            )
+        for t in ['foreground', 'background']
+    }
+    cmds = [
+        'cutadapt {0} -a {1} -A {2} ''-o {3} -p {4} {5} {6}'.format(
+            config['cmd_args']['cutadapt'], config['yml']['adapter']['3prime'],
+            config['yml']['adapter']['5prime'], fq_io[t]['out']['r1'],
+            fq_io[t]['out']['r2'], fq_io[t]['in']['r1'], fq_io[t]['in']['r2']
         )
+        for t in ['foreground', 'background']
+    ]
+    if cpus > 1:
+        sh.run_parallel(cmds)
+    else:
+        sh.run(cmds)
 
 
 def map_reads(config, cpus):
@@ -181,29 +190,33 @@ def map_reads(config, cpus):
     for t in ['foreground', 'background']:
         os.makedirs(os.path.join(config['paths']['dir']['map'], t))
         bd = bam_dict[t]
-        sh.run(
+        sh.run([
             'bwa mem -t {0} {1} {2} {3} '
             '| samtools view -@ {0} -bS - '
             '| samtools sort -@ {0} -o {4} -'.format(
                 cpus, config['paths']['ref']['faidx'], fq_dict[t + '_read1'],
                 fq_dict[t + '_read2'], bd['sort']
-            )
-        )
-        sh.run(
+            ),
             'samtools sort -n -@ {0} {1} '
             '| samtools fixmate -m - {2}'.format(
                 cpus, bd['sort'], bd['fixmate']
-            )
-        )
-        sh.run(
+            ),
             'samtools sort -@ {0} {1} '
             '| samtools markdup - {2}'.format(
                 cpus, bd['fixmate'], bd['markdup']
             )
+        ] + [
+            'samtools index -@ {0} {1}'.format(cpus, bam_dict[t][b])
+            for b in ['sort', 'fixmate', 'markdup']
+        ])
+
+    sh.run_parallel([
+        'samtools flagstat {0} > {1}.flagstat.txt'.format(bam_dict[t][b])
+        for t, b
+        in product(
+            ['foreground', 'background'], ['sort', 'fixmate', 'markdup']
         )
-        for p in bd.values():
-            sh.run('samtools index {}'.format(p))
-            sh.run('samtools flagstat {0} > {1}.flagstat.txt'.format(p))
+    ])
 
 
 def call_variants(config):
@@ -220,7 +233,7 @@ def call_variants(config):
     bam_name = 'markdup.bam'
     raw_bcf = os.path.join(config['paths']['dir']['call'], 'raw.bcf')
     flt_vcf = os.path.join(config['paths']['dir']['call'], 'flt.vcf')
-    sh.run(
+    sh.run([
         'samtools mpileup -uf {0} {1} {2} '
         '| bcftools view -bvcg - > {3}'.format(
             config['paths']['ref']['fasta'],
@@ -231,11 +244,9 @@ def call_variants(config):
                 config['paths']['dir']['map'], 'background', bam_name
             ),
             raw_bcf
-        )
-    )
-    sh.run(
+        ),
         'bcftools view {0} '
         '| vcfutils.pl varFilter -D100 > {1}'.format(
             raw_bcf, flt_vcf
         )
-    )
+    ])

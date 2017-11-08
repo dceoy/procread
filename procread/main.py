@@ -66,9 +66,11 @@ def main():
         elif args['run']:
             with ProcessPoolExecutor(max_workers=cpus) as ppe:
                 ppe.submit(
-                    do_qc_checks, config=cf, cpus=(cpus - 2 if cpus > 2 else 1)
+                    do_qc_checks, config=cf, cpus=(cpus - 3 if cpus > 4 else 1)
                 )
-                ppe.submit(trim_adapters, config=cf)
+                ppe.submit(
+                    trim_adapters, config=cf, cpus=(2 if cpus > 3 else 1)
+                )
                 ppe.submit(make_ref_index, config=cf)
             map_reads(config=cf, cpus=cpus)
             call_variants(config=cf)
