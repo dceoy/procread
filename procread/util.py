@@ -10,7 +10,7 @@ import yaml
 
 
 class Shell:
-    def __init__(self, log_txt=None, quiet=False, format_log=True,
+    def __init__(self, log_txt=None, quiet=False, format_log=False,
                  executable='/bin/bash'):
         self.executable = executable
         self.log_txt = log_txt
@@ -29,21 +29,21 @@ class Shell:
         else:
             self.post_proc = ' > /dev/null 2>&1' if quiet else ''
 
-    def run(self, args, check=True, prompt=None):
-        pr = prompt or '[{}] $'.format(os.getcwd())
+    def run(self, args, check=True, cwd=None, prompt=None):
+        pp = prompt or '[{}] $'.format(os.getcwd())
         for a in (args if isinstance(args, list) else [args]):
             cmd = a + self.post_proc
-            logging.debug('shell:{0}{1} {2}'.format(os.linesep, pr, cmd))
+            logging.debug('shell:{0}{1} {2}'.format(os.linesep, pp, cmd))
             if self.log_txt:
                 with open(self.log_txt, 'a') as f:
-                    f.write('{0}{1} {2}{0}'.format(os.linesep, pr, cmd))
+                    f.write('{0}{1} {2}{0}'.format(os.linesep, pp, cmd))
             subprocess.run(
                 cmd, executable=self.executable, stdout=None, stderr=None,
-                shell=True, check=check
+                shell=True, check=check, cwd=cwd
             )
 
-    def run_parallel(self, args, check=True, prompt=None):
-        pr = prompt or '[{}] $'.format(os.getcwd())
+    def run_parallel(self, args, check=True, cwd=None, prompt=None):
+        pp = prompt or '[{}] $'.format(os.getcwd())
         if self.log_txt:
             tmp_log_txts = [
                 self.log_txt + '.{}'.format(i) for i, a in enumerate(args)
@@ -59,19 +59,19 @@ class Shell:
             ]
             for c, l in zip(cmds, tmp_log_txts):
                 with open(l, 'w') as f:
-                    f.write('{0}{1} {2}{0}'.format(os.linesep, pr, c))
+                    f.write('{0}{1} {2}{0}'.format(os.linesep, pp, c))
         else:
             cmds = [
                 a + (' > /dev/null 2>&1' if self.quiet else '')
                 for a in args
             ]
         logging.debug('shell:{0}{1}'.format(
-            os.linesep, [(pr + ' ' + c + os.linesep) for c in cmds]
+            os.linesep, [(pp + ' ' + c + os.linesep) for c in cmds]
         ))
         procs = [
             subprocess.Popen(
                 c, executable=self.executable, stdout=None, stderr=None,
-                shell=True
+                shell=True, cwd=cwd
             )
             for i, c in enumerate(cmds)
         ]
@@ -107,8 +107,8 @@ def set_log_config(debug=False):
                         level=logging.DEBUG if debug else logging.WARNING)
 
 
-def dump_yaml(dict, flow=False):
-    return yaml.dump(dict, default_flow_style=flow)
+def check_files_exist(paths):
+    return all([os.path.isfile(p) for p in paths])
 
 
 def write_config_yml(path):
@@ -122,7 +122,7 @@ def write_config_yml(path):
         print('A YAML template was generated: {}'.format(path))
 
 
-def generate_config(yml_path, work_dir):
+def generate_param_config(yml_path, work_dir):
     with open(yml_path) as f:
         yml_dict = yaml.load(f)
     wd = os.path.abspath(work_dir)
@@ -135,21 +135,26 @@ def generate_config(yml_path, work_dir):
         'yml': yml_dict,
         'paths': {
             'dir': dict([('work', wd)] + list(dir_dict.items())),
-            'fastq': {
-                '{0}_{1}'.format(t, r):
-                os.path.join(
-                    dir_dict['input'],
-                    re.sub(
-                        r'\.(fastq|fq)\.?[^\.]*\.?[^\.]*$',
-                        '.{}.fastq.gz'.format(
-                            {'read1': 'r1', 'read2': 'r2'}[r]
-                        ),
-                        os.path.basename(yml_dict['path']['fastq'][t][r])
+            'fastq': [
+                {
+                    '{0}_{1}'.format(t, r):
+                    os.path.join(
+                        dir_dict['input'],
+                        re.sub(
+                            r'\.(fastq|fq)\.?[^\.]*\.?[^\.]*$',
+                            '.{}.fastq.gz'.format(
+                                {'read1': 'r1', 'read2': 'r2'}[r]
+                            ),
+                            os.path.basename(d[t][r])
+                        )
                     )
-                )
-                for t, r
-                in product(['foreground', 'background'], ['read1', 'read2'])
-            },
+                    for t, r
+                    in product(
+                        ['foreground', 'background'], ['read1', 'read2']
+                    )
+                }
+                for d in yml_dict['path']['fastq']
+            ],
             'ref': {
                 f: os.path.join(
                     dir_dict['input'],

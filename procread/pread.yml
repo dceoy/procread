@@ -1,11 +1,26 @@
 path:
   fastq:
-    foreground:
-      read1: ./foreground_read1.fastq.gz
-      read2: ./foreground_read2.fastq.gz
-    background:
-      read1: ./background_read1.fastq.gz
-      read2: ./background_read2.fastq.gz
+    - name: case1
+      foreground:
+        read1: ./case1_foreground_read1.fastq.gz
+        read2: ./case1_foreground_read2.fastq.gz
+      background:
+        read1: ./case1_background_read1.fastq.gz
+        read2: ./case1_background_read2.fastq.gz
+    - name: case2
+      foreground:
+        read1: ./case2_foreground_read1.fastq.gz
+        read2: ./case2_foreground_read2.fastq.gz
+      background:
+        read1: ./case2_background_read1.fastq.gz
+        read2: ./case2_background_read2.fastq.gz
+    - name: case3
+      foreground:
+        read1: ./case3_foreground_read1.fastq.gz
+        read2: ./case3_foreground_read2.fastq.gz
+      background:
+        read1: ./case3_background_read1.fastq.gz
+        read2: ./case3_background_read2.fastq.gz
   fasta:
     reference: ./reference.fa.gz
 adapter:

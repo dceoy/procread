@@ -4,58 +4,69 @@ from itertools import product
 import logging
 import os
 import re
-from .util import Shell, ProcreadRuntimeError
+from .util import check_files_exist, ProcreadRuntimeError, Shell
 
 
-def prepare_paths(config, cpus):
+def prepare_paths(cf, cpus):
+    output_files = [
+        d['{0}_{1}'.format(t, r)]
+        for d, t, r
+        in product(
+            cf['paths']['fastq'], ['foreground', 'background'],
+            ['read1', 'read2']
+        )
+    ] + [cf['paths']['ref']['fasta']]
+    logging.debug('output_files: {}'.format(', '.format(output_files)))
+    if check_files_exist(output_files):
+        return
+    else:
+        for d in ['work', 'input']:
+            os.makedirs(cf['paths']['dir'][d], exist_ok=True)
+
     logging.info('Prepare paths to directories and files')
-    for d in ['work', 'input']:
-        os.makedirs(config['paths']['dir'][d], exist_ok=True)
-
-    sh = Shell(log_txt=os.path.join(
-        config['paths']['dir']['input'], 'command_log.txt'
-    ))
+    sh = Shell(
+        log_txt=os.path.join(cf['paths']['dir']['input'], 'prep_log.txt')
+    )
     for c in ['pigz', 'pbzip2']:
         sh.run('{} --version'.format(c))
 
-    for t, r in product(['foreground', 'background'], ['read1', 'read2']):
-        fq_gz = config['paths']['fastq']['{0}_{1}'.format(t, r)]
-        if not os.path.isfile(fq_gz):
-            fq_src = os.path.abspath(config['yml']['path']['fastq'][t][r])
-            fq_src_ext = os.path.splitext(fq_src)[1]
-            if fq_src_ext in ['.fastq', '.fq']:
-                sh.run('pigz -p {0} -c {1} > {2}'.format(
-                    cpus, fq_src, fq_gz
-                ))
-            elif fq_src_ext == '.gz':
-                os.symlink(fq_src, fq_gz)
-            elif fq_src_ext == '.bz2':
-                sh.run(
-                    'pbzip2 -p# {0} -dc {1} | pigz -p {0} -c - > {2}'.format(
-                        cpus, fq_src, fq_gz
+    for src, dst in zip(cf['yml']['path']['fastq'], cf['paths']['fastq']):
+        for t, r in product(['foreground', 'background'], ['read1', 'read2']):
+            fq_dst = dst['{0}_{1}'.format(t, r)]
+            if not os.path.isfile(fq_dst):
+                fq_src = os.path.abspath(src[t][r])
+                fq_src_ext = os.path.splitext(fq_src)[1]
+                if fq_src_ext in ['.fastq', '.fq']:
+                    sh.run(
+                        'pigz -p {0} -c {1} > {2}'.format(cpus, fq_src, fq_dst)
                     )
-                )
-            else:
-                raise ProcreadRuntimeError(
-                    'Supported extension for input fastq: '
-                    '.fastq, .fastq.gz, .fastq.*.gz, .fastq.bz2, .fastq.*.bz2'
-                    ', .fq, .fq.gz, .fq.*.gz, .fq.bz2, .fq.*.bz2'
-                )
+                elif fq_src_ext == '.gz':
+                    os.symlink(fq_src, fq_dst)
+                elif fq_src_ext == '.bz2':
+                    sh.run(
+                        'pbzip2 -p# {0} -dc {1} '
+                        '| pigz -p {0} -c - > {2}'.format(cpus, fq_src, fq_dst)
+                    )
+                else:
+                    raise ProcreadRuntimeError(
+                        'Supported extension for input fastq: '
+                        '.fastq, .fastq.gz, .fastq.*.gz, '
+                        '.fastq.bz2, .fastq.*.bz2, '
+                        '.fq, .fq.gz, .fq.*.gz, .fq.bz2, .fq.*.bz2'
+                    )
 
-    ref_src = os.path.abspath(config['yml']['path']['fasta']['reference'])
-    ref_fa = config['paths']['ref']['fasta']
+    ref_dst = cf['paths']['ref']['fasta']
+    ref_src = os.path.abspath(cf['yml']['path']['fasta']['reference'])
     ref_src_ext = os.path.splitext(ref_src)[1]
-    if not os.path.isfile(ref_fa):
+    if not os.path.isfile(ref_dst):
         if ref_src_ext in ['.fasta', '.fa']:
-            os.symlink(ref_src, ref_fa)
+            os.symlink(ref_src, ref_dst)
         elif ref_src_ext == '.gz':
-            sh.run('pigz -p {0} -dc {1} > {2}'.format(
-                cpus, ref_src, ref_fa
-            ))
+            sh.run('pigz -p {0} -dc {1} > {2}'.format(cpus, ref_src, ref_dst))
         elif ref_src_ext == '.bz2':
-            sh.run('pbzip2 -p# {0} -dc {1} > {2}'.format(
-                cpus, ref_src, ref_fa
-            ))
+            sh.run(
+                'pbzip2 -p# {0} -dc {1} > {2}'.format(cpus, ref_src, ref_dst)
+            )
         else:
             raise ProcreadRuntimeError(
                 'Supported extension for input reference fasta: '
@@ -63,190 +74,268 @@ def prepare_paths(config, cpus):
             )
 
 
-def make_ref_index(config):
-    if os.path.isfile(config['paths']['ref']['faidx']):
+def do_qc_checks(cf, cpus):
+    output_files = [
+        os.path.join(
+            cf['paths']['dir']['qc'],
+            re.sub(
+                r'\.fastq\.gz$', s,
+                os.path.basename(d['{0}_{1}'.format(t, r)])
+            )
+        )
+        for d, t, r, s
+        in product(
+            cf['paths']['fastq'], ['foreground', 'background'],
+            ['read1', 'read2'], ['_fastqc.html', '_fastqc.zip']
+        )
+    ]
+    logging.debug('output_files: {}'.format(', '.format(output_files)))
+    if check_files_exist(output_files):
+        return
+    else:
+        os.makedirs(cf['paths']['dir']['qc'], exist_ok=True)
+
+    logging.info('Do quality control checks for reads')
+    sh = Shell(log_txt=os.path.join(cf['paths']['dir']['qc'], 'qc_log.txt'))
+    sh.run('fastqc --version')
+
+    for d, t, r in product(cf['paths']['fastq'],
+                           ['foreground', 'background'],
+                           ['read1', 'read2']):
+        sh.run(
+            'fastqc {0} --threads {1} --outdir {2} {3}'.format(
+                cf['cmd_args']['fastqc'], cpus, cf['paths']['dir']['qc'],
+                d['{0}_{1}'.format(t, r)]
+            ),
+            cwd=cf['paths']['dir']['qc'],
+        )
+
+
+def trim_adapters(cf, cpus):
+    output_files = [
+        os.path.join(
+            cf['paths']['dir']['trim'],
+            re.sub(
+                r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                os.path.basename(d['{0}_{1}'.format(t, r)])
+            )
+        )
+        for d, t, r
+        in product(
+            cf['paths']['fastq'], ['foreground', 'background'],
+            ['read1', 'read2']
+        )
+    ]
+    logging.debug('output_files: {}'.format(', '.format(output_files)))
+    if check_files_exist(output_files):
+        return
+    else:
+        os.makedirs(cf['paths']['dir']['trim'], exist_ok=True)
+
+    logging.info('Trim adapter sequences in reads')
+    sh = Shell(log_txt=os.path.join(
+       cf['paths']['dir']['trim'], 'trim_log.txt'
+    ))
+    sh.run('cutadapt --version')
+
+    io = [
+        {
+            'out': {
+                r: os.path.join(
+                    cf['paths']['dir']['trim'],
+                    re.sub(
+                        r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                        os.path.basename(d['{0}_{1}'.format(t, r)])
+                    )
+                )
+                for r in ['read1', 'read2']
+            },
+            'in': {
+                r: d['{0}_{1}'.format(t, r)] for r in ['read1', 'read2']
+            }
+        }
+        for d, t
+        in product(
+            cf['paths']['fastq'], ['foreground', 'background'],
+        )
+    ]
+
+    cmds = [
+        'cutadapt {0} -a {1} -A {2} -o {3} -p {4} {5} {6}'.format(
+            cf['cmd_args']['cutadapt'], cf['yml']['adapter']['3prime'],
+            cf['yml']['adapter']['5prime'], f['out']['read1'],
+            f['out']['read2'], f['in']['read1'], f['in']['read2']
+        )
+        for f in io if not check_files_exist(f['out'].values())
+    ]
+    if cmds:
+        if cpus > 1:
+            sh.run_parallel(cmds)
+        else:
+            sh.run(cmds)
+
+
+def make_ref_index(cf):
+    output_files = [
+        cf['paths']['ref']['faidx'] + s
+        for s in ['', '.amb', '.ann', '.pac', '.bwt', '.sa']
+    ]
+    logging.debug('output_files: {}'.format(', '.format(output_files)))
+    if check_files_exist(output_files):
         return
 
     logging.info('Make reference index files')
-    sh = Shell(
-        log_txt=os.path.join(
-            config['paths']['dir']['input'], 'command_log.txt'
-        ),
-        format_log=False
-    )
+    sh = Shell(log_txt=os.path.join(
+        cf['paths']['dir']['input'], 'ref_log.txt'
+    ))
+
     sh.run(['samtools --version', 'bwa'], check=False)
     sh.run([
-        'samtools faidx {}'.format(config['paths']['ref']['fasta']),
+        'samtools faidx {}'.format(cf['paths']['ref']['fasta']),
         'bwa index -p {0} {1}'.format(
-            config['paths']['ref']['faidx'], config['paths']['ref']['fasta']
+            cf['paths']['ref']['faidx'], cf['paths']['ref']['fasta']
         )
     ])
 
 
-def do_qc_checks(config, cpus):
-    if os.path.isdir(config['paths']['dir']['qc']):
-        return
-    else:
-        os.makedirs(config['paths']['dir']['qc'])
-
-    logging.info('Do quality control checks for reads')
-    sh = Shell(log_txt=os.path.join(
-        config['paths']['dir']['qc'], 'command_log.txt'
-    ))
-    sh.run('fastqc --version')
-
-    for t, r in product(['foreground', 'background'], ['read1', 'read2']):
-        sh.run(
-            'fastqc {0} --threads {1} --outdir {2} {3}'.format(
-                config['cmd_args']['fastqc'], cpus,
-                config['paths']['dir']['qc'],
-                config['paths']['fastq']['{0}_{1}'.format(t, r)]
-            )
-        )
-
-
-def trim_adapters(config, cpus):
-    if os.path.isdir(config['paths']['dir']['trim']):
-        return
-    else:
-        os.makedirs(config['paths']['dir']['trim'])
-
-    logging.info('Trim adapter sequences in reads')
-    sh = Shell(log_txt=os.path.join(
-        config['paths']['dir']['trim'], 'command_log.txt'
-    ))
-    sh.run('cutadapt --version')
-
-    fq_io = {
-        t: {
-            'in': {
-                k: config['paths']['fastq']['{0}_{1}'.format(t, r)]
-                for k, r in {'r1': 'read1', 'r2': 'read2'}.items()
-            },
-            'out': {
-                k: os.path.join(
-                    config['paths']['dir']['trim'],
-                    re.sub(
-                        r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
-                        os.path.basename(
-                            config['paths']['fastq']['{0}_{1}'.format(t, r)]
-                        )
-                    )
+def map_reads(cf, cpus):
+    output_files = [
+        os.path.join(cf['paths']['dir']['map'], d['name'], f)
+        for d, f
+        in product(
+            cf['paths']['fastq'],
+            [
+                '{0}_{1}.{2}'.format(t, n, e)
+                for t, n, e
+                in product(
+                    ['foreground', 'background'],
+                    ['sort', 'fixmate', 'markdup'],
+                    ['.bam', '.bam.bai', '.flagstat.txt']
                 )
-                for k, r in {'r1': 'read1', 'r2': 'read2'}.items()
-            }
-        }
-        for t in ['foreground', 'background']
-    }
-    cmds = [
-        'cutadapt {0} -a {1} -A {2} ''-o {3} -p {4} {5} {6}'.format(
-            config['cmd_args']['cutadapt'], config['yml']['adapter']['3prime'],
-            config['yml']['adapter']['5prime'], fq_io[t]['out']['r1'],
-            fq_io[t]['out']['r2'], fq_io[t]['in']['r1'], fq_io[t]['in']['r2']
+            ]
         )
-        for t in ['foreground', 'background']
     ]
-    if cpus > 1:
-        sh.run_parallel(cmds)
-    else:
-        sh.run(cmds)
-
-
-def map_reads(config, cpus):
-    if os.path.isdir(config['paths']['dir']['map']):
+    logging.debug('output_files: {}'.format(', '.format(output_files)))
+    if check_files_exist(output_files):
         return
     else:
-        os.makedirs(config['paths']['dir']['map'])
+        os.makedirs(cf['paths']['dir']['map'], exist_ok=True)
+        for d in cf['paths']['fastq']:
+            os.makedirs(
+                os.path.join(cf['paths']['dir']['map'], d['name']),
+                exist_ok=True
+            )
 
     logging.info('Map reads to a reference')
     sh = Shell(log_txt=os.path.join(
-        config['paths']['dir']['map'], 'command_log.txt'
+        cf['paths']['dir']['map'], 'map_log.txt'
     ))
 
-    if os.path.isdir(config['paths']['dir']['trim']):
-        fq_dict = {
-            k: os.path.join(
-                config['paths']['dir']['trim'],
-                re.sub(
-                    r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
-                    os.path.basename(v)
+    io = [
+        {
+            'name': d['name'],
+            'fq': (
+                {
+                    k: os.path.join(
+                        cf['paths']['dir']['trim'],
+                        re.sub(
+                            r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                            os.path.basename(v)
+                        )
+                    )
+                    for k, v in d.items()
+                }
+                if os.path.isdir(cf['paths']['dir']['trim']) else d
+            ),
+            'bam': {
+                '{0}_{1}.{2}'.format(t, n, e):
+                os.path.join(
+                    cf['paths']['dir']['map'], d['name'],
+                    '{0}_{1}.{2}'.format(t, n, e)
                 )
-            )
-            for k, v in config['paths']['fastq'].items()
+                for t, n, e
+                in product(
+                    ['foreground', 'background'],
+                    ['sort', 'fixmate', 'markdup'],
+                    ['.bam', '.bam.bai', '.flagstat.txt']
+                )
+            }
         }
-    else:
-        fq_dict = config['paths']['fastq']
+        for d in cf['paths']['fastq']
+    ]
 
-    bam_dict = {
-        t: {
-            b: os.path.join(
-                config['paths']['dir']['map'], t, '{}.bam'.format(b)
-            )
-            for b in ['sort', 'fixmate', 'markdup']
-        }
-        for t in ['foreground', 'background']
-    }
-
-    for t in ['foreground', 'background']:
-        os.makedirs(os.path.join(config['paths']['dir']['map'], t))
-        bd = bam_dict[t]
+    for d, t in product(io, ['foreground', 'background']):
         sh.run([
             'bwa mem -t {0} {1} {2} {3} '
             '| samtools view -@ {0} -bS - '
             '| samtools sort -@ {0} -o {4} -'.format(
-                cpus, config['paths']['ref']['faidx'], fq_dict[t + '_read1'],
-                fq_dict[t + '_read2'], bd['sort']
+                cpus, cf['paths']['ref']['faidx'], d['fq'][t + '_read1'],
+                d['fq'][t + '_read2'], d['bam'][t + '_sort.bam']
             ),
             'samtools sort -n -@ {0} {1} '
             '| samtools fixmate -m - {2}'.format(
-                cpus, bd['sort'], bd['fixmate']
+                cpus, d['bam'][t + '_sort.bam'], d['bam'][t + '_fixmate.bam']
             ),
             'samtools sort -@ {0} {1} '
             '| samtools markdup - {2}'.format(
-                cpus, bd['fixmate'], bd['markdup']
+                cpus, d['bam'][t + '_fixmate.bam'],
+                d['bam'][t + '_markdup.bam']
             )
         ] + [
-            'samtools index -@ {0} {1}'.format(cpus, bam_dict[t][b])
+            'samtools index -@ {0} {1}'.format(
+                cpus, d['bam']['{0}_{1}.bam'.format(t, b)]
+            )
             for b in ['sort', 'fixmate', 'markdup']
         ])
 
     sh.run_parallel([
-        'samtools flagstat {0} > {1}.flagstat.txt'.format(bam_dict[t][b])
-        for t, b
+        'samtools flagstat {0} > {1}'.format(
+            d['bam']['{0}_{1}.bam'.format(t, b)],
+            d['bam']['{0}_{1}.flagstat.txt'.format(t, b)]
+        )
+        for d, t, b
         in product(
-            ['foreground', 'background'], ['sort', 'fixmate', 'markdup']
+            io, ['foreground', 'background'],
+            ['sort', 'fixmate', 'markdup']
         )
     ])
 
 
-def call_variants(config):
-    if os.path.isdir(config['paths']['dir']['call']):
+def call_variants(cf):
+    output_files = [
+        os.path.join(cf['paths']['dir']['map'], d['name'], f)
+        for d, f in product(cf['paths']['fastq'], ['raw.bcf', 'flt.vcf'])
+    ]
+    logging.debug('output_files: {}'.format(', '.format(output_files)))
+    if check_files_exist(output_files):
         return
     else:
-        os.makedirs(config['paths']['dir']['call'])
+        os.makedirs(cf['paths']['dir']['call'], exist_ok=True)
+        for d in cf['paths']['fastq']:
+            os.makedirs(
+                os.path.join(cf['paths']['dir']['call'], d['name']),
+                exist_ok=True
+            )
 
     logging.info('Call SNVs/indels')
     sh = Shell(log_txt=os.path.join(
-        config['paths']['dir']['call'], 'command_log.txt'
+        cf['paths']['dir']['call'], 'call_log.txt'
     ))
 
-    bam_name = 'markdup.bam'
-    raw_bcf = os.path.join(config['paths']['dir']['call'], 'raw.bcf')
-    flt_vcf = os.path.join(config['paths']['dir']['call'], 'flt.vcf')
-    sh.run([
-        'samtools mpileup -uf {0} {1} {2} '
-        '| bcftools view -bvcg - > {3}'.format(
-            config['paths']['ref']['fasta'],
+    sh.run_parallel([
+        'samtools mpileup -uf {0} {1} {2} | bcftools view -bvcg - > {3}'
+        ' && bcftools view {3} | vcfutils.pl varFilter -D100 > {4}'.format(
+            cf['paths']['ref']['fasta'],
             os.path.join(
-                config['paths']['dir']['map'], 'foreground', bam_name
+                cf['paths']['dir']['map'], d['name'],
+                'foreground_markdup.bam'
             ),
             os.path.join(
-                config['paths']['dir']['map'], 'background', bam_name
+                cf['paths']['dir']['map'], d['name'],
+                'background_markdup.bam'
             ),
-            raw_bcf
-        ),
-        'bcftools view {0} '
-        '| vcfutils.pl varFilter -D100 > {1}'.format(
-            raw_bcf, flt_vcf
+            os.path.join(cf['paths']['dir']['call'], d['name'], 'raw.bcf'),
+            os.path.join(cf['paths']['dir']['call'], d['name'], 'flt.vcf')
         )
+        for d in cf['paths']['fastq']
     ])

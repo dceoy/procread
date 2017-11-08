@@ -6,6 +6,7 @@ Usage:
     procread init [--debug] [--file=<yaml>] [--work=<dir>]
     procread qc [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread trim [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
+    procread ref [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread map [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread call [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
     procread run [--debug] [--file=<yaml>] [--cpus=<int>] [--work=<dir>]
@@ -24,18 +25,19 @@ Commands:
     init            Generate a YAML template for configuration
     qc              Do quality control checks for reads
     trim            Trim adapter sequences in reads
+    ref             Prepare reference index files
     map             Map reads to a reference
     call            Call SNVs/indels
     run             Run a variant calling pipeline
 """
 
-from concurrent.futures import ProcessPoolExecutor
 import logging
 from multiprocessing import cpu_count
 import os
 from docopt import docopt
+import yaml
 from . import __version__
-from .util import dump_yaml, generate_config, set_log_config, write_config_yml
+from .util import generate_param_config, set_log_config, write_config_yml
 from .task import call_variants, do_qc_checks, map_reads, make_ref_index, \
                   prepare_paths, trim_adapters
 
@@ -49,28 +51,28 @@ def main():
         logging.debug('Initiation')
         write_config_yml(path=args['--file'])
     else:
-        cf = generate_config(yml_path=args['--file'], work_dir=args['--work'])
-        logging.debug('cf:{0}{1}'.format(os.linesep, dump_yaml(cf)))
+        cf = generate_param_config(
+            yml_path=args['--file'], work_dir=args['--work']
+        )
+        logging.debug('cf:{0}{1}'.format(
+            os.linesep, yaml.dump(cf, default_flow_style=False)
+        ))
         cpus = int(args['--cpus']) if args['--cpus'] else cpu_count()
 
-        prepare_paths(config=cf, cpus=cpus)
+        prepare_paths(cf=cf, cpus=cpus)
         if args['qc']:
-            do_qc_checks(config=cf, cpus=cpus)
+            do_qc_checks(cf=cf, cpus=cpus)
         elif args['trim']:
-            trim_adapters(config=cf)
+            trim_adapters(cf=cf)
+        elif args['ref']:
+            make_ref_index(cf=cf)
         elif args['map']:
-            make_ref_index(config=cf)
-            map_reads(config=cf, cpus=cpus)
+            map_reads(cf=cf, cpus=cpus)
         elif args['call']:
-            call_variants(config=cf)
+            call_variants(cf=cf)
         elif args['run']:
-            with ProcessPoolExecutor(max_workers=cpus) as ppe:
-                ppe.submit(
-                    do_qc_checks, config=cf, cpus=(cpus - 3 if cpus > 4 else 1)
-                )
-                ppe.submit(
-                    trim_adapters, config=cf, cpus=(2 if cpus > 3 else 1)
-                )
-                ppe.submit(make_ref_index, config=cf)
-            map_reads(config=cf, cpus=cpus)
-            call_variants(config=cf)
+            do_qc_checks(cf=cf, cpus=cpus)
+            trim_adapters(cf=cf, cpus=cpus)
+            make_ref_index(cf=cf)
+            map_reads(cf=cf, cpus=cpus)
+            call_variants(cf=cf)
