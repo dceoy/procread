@@ -12,12 +12,13 @@ import yaml
 class Shell:
     def __init__(self, log_txt=None, quiet=False, format_log=False,
                  executable='/bin/bash'):
+        logger = logging.getLogger(__name__)
         self.executable = executable
         self.log_txt = log_txt
         self.quiet = quiet
         if log_txt:
             if format_log:
-                logging.debug('Write a log file: {}'.format(log_txt))
+                logger.debug('Write a log file: {}'.format(log_txt))
                 with open(log_txt, 'w') as f:
                     f.write('# shell: {0}{1}'.format(executable, os.linesep))
             self.post_proc = (
@@ -30,10 +31,11 @@ class Shell:
             self.post_proc = ' > /dev/null 2>&1' if quiet else ''
 
     def run(self, args, check=True, cwd=None, prompt=None):
+        logger = logging.getLogger(__name__)
         pp = prompt or '[{}] $'.format(os.getcwd())
         for a in (args if isinstance(args, list) else [args]):
             cmd = a + self.post_proc
-            logging.debug('shell:{0}{1} {2}'.format(os.linesep, pp, cmd))
+            logger.debug('shell:{0}{1} {2}'.format(os.linesep, pp, cmd))
             if self.log_txt:
                 with open(self.log_txt, 'a') as f:
                     f.write('{0}{1} {2}{0}'.format(os.linesep, pp, cmd))
@@ -43,6 +45,7 @@ class Shell:
             )
 
     def run_parallel(self, args, check=True, cwd=None, prompt=None):
+        logger = logging.getLogger(__name__)
         pp = prompt or '[{}] $'.format(os.getcwd())
         if self.log_txt:
             tmp_log_txts = [
@@ -65,8 +68,8 @@ class Shell:
                 a + (' > /dev/null 2>&1' if self.quiet else '')
                 for a in args
             ]
-        logging.debug('shell:{0}{1}'.format(
-            os.linesep, [(pp + ' ' + c + os.linesep) for c in cmds]
+        logger.debug('shell:{}'.format(
+            ''.join([(os.linesep + pp + ' ' + c) for c in cmds])
         ))
         procs = [
             subprocess.Popen(
@@ -83,7 +86,7 @@ class Shell:
                         lt.write(tlt.read())
                 os.remove(l)
                 if p.returncode != 0:
-                    logging.error(e)
+                    logger.error(e)
                     raise subprocess.CalledProcessError(
                         'Command \'{0}\' returned non-zero exit status '
                         '{1}.'.format(p.args, p.returncode)
@@ -102,20 +105,20 @@ class ProcreadRuntimeError(Exception):
 
 
 def set_log_config(debug=False):
-    logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S',
-                        level=logging.DEBUG if debug else logging.WARNING)
-
-
-def check_files_exist(paths):
-    return all([os.path.isfile(p) for p in paths])
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)-8s %(name)-15s %(funcName)s'
+        ' - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        level=logging.DEBUG if debug else logging.WARNING
+    )
 
 
 def write_config_yml(path):
+    logger = logging.getLogger(__name__)
     if os.path.exists(path):
         print('The file already exists: {}'.format(path))
     else:
-        logging.debug('Write {}'.format(path))
+        logger.debug('Write {}'.format(path))
         shutil.copyfile(
             os.path.join(os.path.dirname(__file__), 'pread.yml'), path
         )
@@ -136,23 +139,28 @@ def generate_param_config(yml_path, work_dir):
         'paths': {
             'dir': dict([('work', wd)] + list(dir_dict.items())),
             'fastq': [
-                {
-                    '{0}_{1}'.format(t, r):
-                    os.path.join(
-                        dir_dict['input'],
-                        re.sub(
-                            r'\.(fastq|fq)\.?[^\.]*\.?[^\.]*$',
-                            '.{}.fastq.gz'.format(
-                                {'read1': 'r1', 'read2': 'r2'}[r]
-                            ),
-                            os.path.basename(d[t][r])
+                dict(
+                    [('name', d['name'])] +
+                    [
+                        (
+                            '{0}_{1}'.format(t, r),
+                            os.path.join(
+                                dir_dict['input'],
+                                re.sub(
+                                    r'\.(fastq|fq)\.?[^\.]*\.?[^\.]*$',
+                                    '.{}.fastq.gz'.format(
+                                        {'read1': 'r1', 'read2': 'r2'}[r]
+                                    ),
+                                    os.path.basename(d[t][r])
+                                )
+                            )
                         )
-                    )
-                    for t, r
-                    in product(
-                        ['foreground', 'background'], ['read1', 'read2']
-                    )
-                }
+                        for t, r
+                        in product(
+                            ['foreground', 'background'], ['read1', 'read2']
+                        )
+                    ]
+                )
                 for d in yml_dict['path']['fastq']
             ],
             'ref': {

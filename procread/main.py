@@ -45,16 +45,17 @@ from .task import call_variants, do_qc_checks, map_reads, make_ref_index, \
 def main():
     args = docopt(__doc__, version='procread {}'.format(__version__))
     set_log_config(debug=args['--debug'])
-    logging.debug('args:{0}{1}'.format(os.linesep, args))
+    logger = logging.getLogger(__name__)
+    logger.debug('args:{0}{1}'.format(os.linesep, args))
 
     if args['init']:
-        logging.debug('Initiation')
+        logger.debug('Initiation')
         write_config_yml(path=args['--file'])
     else:
         cf = generate_param_config(
             yml_path=args['--file'], work_dir=args['--work']
         )
-        logging.debug('cf:{0}{1}'.format(
+        logger.debug('cf:{0}{1}'.format(
             os.linesep, yaml.dump(cf, default_flow_style=False)
         ))
         cpus = int(args['--cpus']) if args['--cpus'] else cpu_count()

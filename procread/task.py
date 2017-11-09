@@ -4,10 +4,11 @@ from itertools import product
 import logging
 import os
 import re
-from .util import check_files_exist, ProcreadRuntimeError, Shell
+from .util import ProcreadRuntimeError, Shell
 
 
 def prepare_paths(cf, cpus):
+    logger = logging.getLogger(__name__)
     output_files = [
         d['{0}_{1}'.format(t, r)]
         for d, t, r
@@ -16,14 +17,15 @@ def prepare_paths(cf, cpus):
             ['read1', 'read2']
         )
     ] + [cf['paths']['ref']['fasta']]
-    logging.debug('output_files: {}'.format(', '.format(output_files)))
-    if check_files_exist(output_files):
+    logger.debug('output_files: {}'.format(output_files))
+    if all([os.path.isfile(p) for p in output_files]):
+        logger.debug('Skip file and directory preparation')
         return
     else:
         for d in ['work', 'input']:
             os.makedirs(cf['paths']['dir'][d], exist_ok=True)
 
-    logging.info('Prepare paths to directories and files')
+    logger.info('Prepare paths to directories and files')
     sh = Shell(
         log_txt=os.path.join(cf['paths']['dir']['input'], 'prep_log.txt')
     )
@@ -75,6 +77,7 @@ def prepare_paths(cf, cpus):
 
 
 def do_qc_checks(cf, cpus):
+    logger = logging.getLogger(__name__)
     output_files = [
         os.path.join(
             cf['paths']['dir']['qc'],
@@ -89,13 +92,14 @@ def do_qc_checks(cf, cpus):
             ['read1', 'read2'], ['_fastqc.html', '_fastqc.zip']
         )
     ]
-    logging.debug('output_files: {}'.format(', '.format(output_files)))
-    if check_files_exist(output_files):
+    logger.debug('output_files: {}'.format(output_files))
+    if all([os.path.isfile(p) for p in output_files]):
+        logger.debug('Skip quality control checks')
         return
     else:
         os.makedirs(cf['paths']['dir']['qc'], exist_ok=True)
 
-    logging.info('Do quality control checks for reads')
+    logger.info('Do quality control checks for reads')
     sh = Shell(log_txt=os.path.join(cf['paths']['dir']['qc'], 'qc_log.txt'))
     sh.run('fastqc --version')
 
@@ -112,11 +116,12 @@ def do_qc_checks(cf, cpus):
 
 
 def trim_adapters(cf, cpus):
+    logger = logging.getLogger(__name__)
     output_files = [
         os.path.join(
             cf['paths']['dir']['trim'],
             re.sub(
-                r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                r'(\.r[12]\.fastq\.gz)$', r'.trimmed\1',
                 os.path.basename(d['{0}_{1}'.format(t, r)])
             )
         )
@@ -126,13 +131,14 @@ def trim_adapters(cf, cpus):
             ['read1', 'read2']
         )
     ]
-    logging.debug('output_files: {}'.format(', '.format(output_files)))
-    if check_files_exist(output_files):
+    logger.debug('output_files: {}'.format(output_files))
+    if all([os.path.isfile(p) for p in output_files]):
+        logger.debug('Skip adapter trimming')
         return
     else:
         os.makedirs(cf['paths']['dir']['trim'], exist_ok=True)
 
-    logging.info('Trim adapter sequences in reads')
+    logger.info('Trim adapter sequences in reads')
     sh = Shell(log_txt=os.path.join(
        cf['paths']['dir']['trim'], 'trim_log.txt'
     ))
@@ -144,7 +150,7 @@ def trim_adapters(cf, cpus):
                 r: os.path.join(
                     cf['paths']['dir']['trim'],
                     re.sub(
-                        r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                        r'(\.r[12]\.fastq\.gz)$', r'.trimmed\1',
                         os.path.basename(d['{0}_{1}'.format(t, r)])
                     )
                 )
@@ -166,7 +172,8 @@ def trim_adapters(cf, cpus):
             cf['yml']['adapter']['5prime'], f['out']['read1'],
             f['out']['read2'], f['in']['read1'], f['in']['read2']
         )
-        for f in io if not check_files_exist(f['out'].values())
+        for f in io
+        if not all([os.path.isfile(p) for p in f['out'].values()])
     ]
     if cmds:
         if cpus > 1:
@@ -176,15 +183,17 @@ def trim_adapters(cf, cpus):
 
 
 def make_ref_index(cf):
+    logger = logging.getLogger(__name__)
     output_files = [
         cf['paths']['ref']['faidx'] + s
         for s in ['', '.amb', '.ann', '.pac', '.bwt', '.sa']
     ]
-    logging.debug('output_files: {}'.format(', '.format(output_files)))
-    if check_files_exist(output_files):
+    logger.debug('output_files: {}'.format(output_files))
+    if all([os.path.isfile(p) for p in output_files]):
+        logger.debug('Skip making reference index files')
         return
 
-    logging.info('Make reference index files')
+    logger.info('Make reference index files')
     sh = Shell(log_txt=os.path.join(
         cf['paths']['dir']['input'], 'ref_log.txt'
     ))
@@ -199,24 +208,27 @@ def make_ref_index(cf):
 
 
 def map_reads(cf, cpus):
+    logger = logging.getLogger(__name__)
     output_files = [
         os.path.join(cf['paths']['dir']['map'], d['name'], f)
         for d, f
         in product(
             cf['paths']['fastq'],
             [
-                '{0}_{1}.{2}'.format(t, n, e)
+                '{0}_{1}.bam{2}'.format(t, n, e)
                 for t, n, e
                 in product(
                     ['foreground', 'background'],
                     ['sort', 'fixmate', 'markdup'],
-                    ['.bam', '.bam.bai', '.flagstat.txt']
+                    ['', '.bai', '.idxstats.txt', '.flagstat.txt',
+                     '.stats.txt']
                 )
             ]
         )
     ]
-    logging.debug('output_files: {}'.format(', '.format(output_files)))
-    if check_files_exist(output_files):
+    logger.debug('output_files: {}'.format(output_files))
+    if all([os.path.isfile(p) for p in output_files]):
+        logger.debug('Skip mapping read')
         return
     else:
         os.makedirs(cf['paths']['dir']['map'], exist_ok=True)
@@ -226,7 +238,7 @@ def map_reads(cf, cpus):
                 exist_ok=True
             )
 
-    logging.info('Map reads to a reference')
+    logger.info('Map reads to a reference')
     sh = Shell(log_txt=os.path.join(
         cf['paths']['dir']['map'], 'map_log.txt'
     ))
@@ -239,7 +251,7 @@ def map_reads(cf, cpus):
                     k: os.path.join(
                         cf['paths']['dir']['trim'],
                         re.sub(
-                            r'(\.r[12]\.fastq\.gz)$', r'\.trimmed\1',
+                            r'(\.r[12]\.fastq\.gz)$', r'.trimmed\1',
                             os.path.basename(v)
                         )
                     )
@@ -248,16 +260,17 @@ def map_reads(cf, cpus):
                 if os.path.isdir(cf['paths']['dir']['trim']) else d
             ),
             'bam': {
-                '{0}_{1}.{2}'.format(t, n, e):
+                '{0}_{1}.bam{2}'.format(t, n, e):
                 os.path.join(
                     cf['paths']['dir']['map'], d['name'],
-                    '{0}_{1}.{2}'.format(t, n, e)
+                    '{0}_{1}.bam{2}'.format(t, n, e)
                 )
                 for t, n, e
                 in product(
                     ['foreground', 'background'],
                     ['sort', 'fixmate', 'markdup'],
-                    ['.bam', '.bam.bai', '.flagstat.txt']
+                    ['', '.bai', '.idxstats.txt', '.flagstat.txt',
+                     '.stats.txt']
                 )
             }
         }
@@ -291,23 +304,27 @@ def map_reads(cf, cpus):
     sh.run_parallel([
         'samtools flagstat {0} > {1}'.format(
             d['bam']['{0}_{1}.bam'.format(t, b)],
-            d['bam']['{0}_{1}.flagstat.txt'.format(t, b)]
+            d['bam']['{0}_{1}.bam.{2}.txt'.format(t, b, c)]
         )
-        for d, t, b
+        for d, t, b, c
         in product(
-            io, ['foreground', 'background'],
-            ['sort', 'fixmate', 'markdup']
+            io,
+            ['foreground', 'background'],
+            ['sort', 'fixmate', 'markdup'],
+            ['idxstats', 'flagstat', 'stats']
         )
     ])
 
 
 def call_variants(cf):
+    logger = logging.getLogger(__name__)
     output_files = [
         os.path.join(cf['paths']['dir']['map'], d['name'], f)
         for d, f in product(cf['paths']['fastq'], ['raw.bcf', 'flt.vcf'])
     ]
-    logging.debug('output_files: {}'.format(', '.format(output_files)))
-    if check_files_exist(output_files):
+    logger.debug('output_files: {}'.format(output_files))
+    if all([os.path.isfile(p) for p in output_files]):
+        logger.debug('Skip SNVs/indels calling')
         return
     else:
         os.makedirs(cf['paths']['dir']['call'], exist_ok=True)
@@ -317,7 +334,7 @@ def call_variants(cf):
                 exist_ok=True
             )
 
-    logging.info('Call SNVs/indels')
+    logger.info('Call SNVs/indels')
     sh = Shell(log_txt=os.path.join(
         cf['paths']['dir']['call'], 'call_log.txt'
     ))
