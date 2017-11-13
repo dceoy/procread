@@ -278,28 +278,40 @@ def map_reads(cf, cpus):
     ]
 
     for d, t in product(io, ['foreground', 'background']):
-        sh.run([
-            'bwa mem -t {0} {1} {2} {3} '
-            '| samtools view -@ {0} -bS - '
-            '| samtools sort -@ {0} -o {4} -'.format(
-                cpus, cf['paths']['ref']['faidx'], d['fq'][t + '_read1'],
-                d['fq'][t + '_read2'], d['bam'][t + '_sort.bam']
-            ),
-            'samtools sort -n -@ {0} {1} '
-            '| samtools fixmate -m - {2}'.format(
-                cpus, d['bam'][t + '_sort.bam'], d['bam'][t + '_fixmate.bam']
-            ),
-            'samtools sort -@ {0} {1} '
-            '| samtools markdup - {2}'.format(
-                cpus, d['bam'][t + '_fixmate.bam'],
-                d['bam'][t + '_markdup.bam']
-            )
-        ] + [
-            'samtools index -@ {0} {1}'.format(
-                cpus, d['bam']['{0}_{1}.bam'.format(t, b)]
-            )
-            for b in ['sort', 'fixmate', 'markdup']
-        ])
+        if not os.path.isfile(d['bam'][t + '_sort.bam']):
+            sh.run([
+                'bwa mem -t {0} {1} {2} {3} '
+                '| samtools view -@ {0} -bS - '
+                '| samtools sort -@ {0} -o {4} -'.format(
+                    cpus, cf['paths']['ref']['faidx'], d['fq'][t + '_read1'],
+                    d['fq'][t + '_read2'], d['bam'][t + '_sort.bam']
+                )
+            ])
+        if not os.path.isfile(d['bam'][t + '_fixmate.bam']):
+            sh.run([
+                'samtools sort -n -@ {0} {1} '
+                '| samtools fixmate -m - {2}'.format(
+                    cpus, d['bam'][t + '_sort.bam'],
+                    d['bam'][t + '_fixmate.bam']
+                )
+            ])
+        if not os.path.isfile(d['bam'][t + '_markdup.bam']):
+            sh.run([
+                'samtools sort -@ {0} {1} '
+                '| samtools markdup - {2}'.format(
+                    cpus, d['bam'][t + '_fixmate.bam'],
+                    d['bam'][t + '_markdup.bam']
+                )
+            ])
+
+    sh.run([
+        'samtools index -@ {0} {1}'.format(
+            cpus, d['bam']['{0}_{1}.bam'.format(t, b)]
+        )
+        for d, t, b
+        in product(io, ['foreground', 'background'], ['sort', 'markdup'])
+        if not os.path.isfile(d['bam']['{0}_{1}.bam.bai'.format(t, b)])
+    ])
 
     sh.run_parallel([
         'samtools flagstat {0} > {1}'.format(
@@ -308,11 +320,10 @@ def map_reads(cf, cpus):
         )
         for d, t, b, c
         in product(
-            io,
-            ['foreground', 'background'],
-            ['sort', 'fixmate', 'markdup'],
+            io, ['foreground', 'background'], ['sort', 'fixmate', 'markdup'],
             ['idxstats', 'flagstat', 'stats']
         )
+        if not os.path.isfile(d['bam']['{0}_{1}.bam.{2}.txt'.format(t, b, c)])
     ])
 
 

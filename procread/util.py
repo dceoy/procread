@@ -89,7 +89,7 @@ class Shell:
                     logger.error(e)
                     raise subprocess.CalledProcessError(
                         'Command \'{0}\' returned non-zero exit status '
-                        '{1}.'.format(p.args, p.returncode)
+                        '{1}.'.format(' '.join(p.args), p.returncode)
                     )
         except ProcreadRuntimeError as err:
             for p, l in zip(procs, tmp_log_txts):
