@@ -5,6 +5,7 @@ ADD https://github.com/lh3/bwa/archive/master.tar.gz /tmp/bwa.tar.gz
 ADD https://github.com/samtools/htslib/archive/master.tar.gz /tmp/htslib.tar.gz
 ADD https://github.com/samtools/samtools/archive/master.tar.gz /tmp/samtools.tar.gz
 ADD https://github.com/samtools/bcftools/archive/master.tar.gz /tmp/bcftools.tar.gz
+ADD https://github.com/broadgsa/gatk-protected/archive/master.tar.gz /tmp/gatk.tar.gz
 ADD https://bootstrap.pypa.io/get-pip.py /tmp/get-pip.py
 ADD . /tmp/procread
 
@@ -14,8 +15,8 @@ RUN set -e \
 RUN set -e \
       && apt-get -y update \
       && apt-get -y upgrade \
-      && apt-get -y install autoconf default-jre gcc libbz2-dev liblzma-dev libncurses5-dev \
-                            libz-dev make pbzip2 pigz python3.6 unzip \
+      && apt-get -y install autoconf default-jdk gcc git maven libbz2-dev liblzma-dev \
+                            libncurses5-dev libz-dev make pbzip2 pigz python3.6 unzip \
       && apt-get clean
 
 RUN set -e \
@@ -58,9 +59,20 @@ RUN set -e \
       && make install
 
 RUN set -e \
+      && git clone --depth 1 https://github.com/broadinstitute/picard.git /usr/local/src/picard \
+      && cd /usr/local/src/picard \
+      && ./gradlew shadowJar
+
+RUN set -e \
+      && tar xvf /tmp/gatk.tar.gz -C /usr/local/src \
+      && mv /usr/local/src/gatk-protected-master /usr/local/src/gatk \
+      && cd /usr/local/src/gatk \
+      && mvn package
+
+RUN set -e \
       && ln -s /usr/bin/python3.6 /usr/local/bin/python3 \
       && /usr/local/bin/python3 /tmp/get-pip.py \
-      && pip install -U --no-cache-dir pip \
+      && pip install -U --no-cache-dir pip cutadapt \
       && pip install -U --no-cache-dir /tmp/procread \
       && rm -rf /tmp/*
 

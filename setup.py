@@ -14,7 +14,6 @@ setup(
     url='https://github.com/dceoy/procread',
     include_package_data=True,
     install_requires=[
-        'biopython',
         'cutadapt',
         'docopt',
         'pyyaml'
