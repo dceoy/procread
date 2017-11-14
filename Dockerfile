@@ -14,9 +14,13 @@ RUN set -e \
 
 RUN set -e \
       && apt-get -y update \
+      && apt-get -y install software-properties-common \
+      && add-apt-repository ppa:webupd8team/java \
+      && apt-get -y update \
       && apt-get -y upgrade \
-      && apt-get -y install autoconf default-jdk gcc git maven libbz2-dev liblzma-dev \
-                            libncurses5-dev libz-dev make pbzip2 pigz python3.6 unzip \
+      && yes yes | apt-get -y install oracle-java8-installer \
+      && apt-get -y install autoconf gcc git maven libbz2-dev liblzma-dev libncurses5-dev \
+                            libz-dev make pbzip2 pigz python3.6 unzip \
       && apt-get clean
 
 RUN set -e \
