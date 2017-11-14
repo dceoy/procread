@@ -80,16 +80,16 @@ class Shell:
         ]
         try:
             for p, l in zip(procs, tmp_log_txts):
-                e = p.communicate()[1]
+                r = p.communicate()
+                logger.debug('p.communicate(): {}'.format(r))
                 with open(self.log_txt, 'a') as lt:
                     with open(l, 'r') as tlt:
                         lt.write(tlt.read())
                 os.remove(l)
                 if p.returncode != 0:
-                    logger.error(e)
-                    raise subprocess.CalledProcessError(
+                    raise ProcreadCalledProcessError(
                         'Command \'{0}\' returned non-zero exit status '
-                        '{1}.'.format(' '.join(p.args), p.returncode)
+                        '{1}.'.format(p.args, p.returncode)
                     )
         except ProcreadRuntimeError as err:
             for p, l in zip(procs, tmp_log_txts):
@@ -101,6 +101,10 @@ class Shell:
 
 
 class ProcreadRuntimeError(Exception):
+    pass
+
+
+class ProcreadCalledProcessError(Exception):
     pass
 
 
