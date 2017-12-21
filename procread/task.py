@@ -46,7 +46,7 @@ def prepare_paths(cf, cpus):
                     os.symlink(fq_src, fq_dst)
                 elif fq_src_ext == '.bz2':
                     sh.run(
-                        'pbzip2 -p# {0} -dc {1} '
+                        'pbzip2 -p {0} -dc {1} '
                         '| pigz -p {0} -c - > {2}'.format(cpus, fq_src, fq_dst)
                     )
                 else:
@@ -67,7 +67,7 @@ def prepare_paths(cf, cpus):
             sh.run('pigz -p {0} -dc {1} > {2}'.format(cpus, ref_src, ref_dst))
         elif ref_src_ext == '.bz2':
             sh.run(
-                'pbzip2 -p# {0} -dc {1} > {2}'.format(cpus, ref_src, ref_dst)
+                'pbzip2 -p {0} -dc {1} > {2}'.format(cpus, ref_src, ref_dst)
             )
         else:
             raise ProcreadRuntimeError(
@@ -166,20 +166,15 @@ def trim_adapters(cf, cpus):
         )
     ]
 
-    cmds = [
+    sh.run([
         'cutadapt {0} -a {1} -A {2} -o {3} -p {4} {5} {6}'.format(
-            cf['cmd_args']['cutadapt'], cf['yml']['adapter']['3prime'],
+            cf['cmd_args']['cutadapt'], cpus, cf['yml']['adapter']['3prime'],
             cf['yml']['adapter']['5prime'], f['out']['read1'],
             f['out']['read2'], f['in']['read1'], f['in']['read2']
         )
         for f in io
         if not all([os.path.isfile(p) for p in f['out'].values()])
-    ]
-    if cmds:
-        if cpus > 1:
-            sh.run_parallel(cmds)
-        else:
-            sh.run(cmds)
+    ])
 
 
 def make_ref_index(cf):
@@ -290,7 +285,7 @@ def map_reads(cf, cpus):
         if not os.path.isfile(d['bam'][t + '_fixmate.bam']):
             sh.run([
                 'samtools sort -n -@ {0} {1} '
-                '| samtools fixmate -m - {2}'.format(
+                '| samtools fixmate -cm - {2}'.format(
                     cpus, d['bam'][t + '_sort.bam'],
                     d['bam'][t + '_fixmate.bam']
                 )
@@ -298,7 +293,7 @@ def map_reads(cf, cpus):
         if not os.path.isfile(d['bam'][t + '_markdup.bam']):
             sh.run([
                 'samtools sort -@ {0} {1} '
-                '| samtools markdup - {2}'.format(
+                '| samtools markdup -rs - {2}'.format(
                     cpus, d['bam'][t + '_fixmate.bam'],
                     d['bam'][t + '_markdup.bam']
                 )
