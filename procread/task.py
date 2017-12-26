@@ -168,8 +168,8 @@ def trim_adapters(cf, cpus):
 
     sh.run([
         'cutadapt {0} -a {1} -A {2} -o {3} -p {4} {5} {6}'.format(
-            cf['cmd_args']['cutadapt'], cpus, cf['yml']['adapter']['3prime'],
-            cf['yml']['adapter']['5prime'], f['out']['read1'],
+            cf['cmd_args']['cutadapt'], cpus, cf['yml']['adapter']['forward'],
+            cf['yml']['adapter']['reverse'], f['out']['read1'],
             f['out']['read2'], f['in']['read1'], f['in']['read2']
         )
         for f in io
