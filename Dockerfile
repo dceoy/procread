@@ -21,6 +21,7 @@ RUN set -e \
       && yes yes | apt-get -y install oracle-java8-installer \
       && apt-get -y install autoconf gcc git maven libbz2-dev liblzma-dev libncurses5-dev \
                             libz-dev make pbzip2 pigz python3.6 unzip \
+      && apt-get -y autoremove \
       && apt-get clean
 
 RUN set -e \

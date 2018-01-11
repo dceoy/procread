@@ -1,31 +1,27 @@
 path:
   fastq:
-    - name: case1
-      foreground:
-        read1: ./case1_foreground_read1.fastq.gz
-        read2: ./case1_foreground_read2.fastq.gz
-      background:
-        read1: ./case1_background_read1.fastq.gz
-        read2: ./case1_background_read2.fastq.gz
-    - name: case2
-      foreground:
-        read1: ./case2_foreground_read1.fastq.gz
-        read2: ./case2_foreground_read2.fastq.gz
-      background:
-        read1: ./case2_background_read1.fastq.gz
-        read2: ./case2_background_read2.fastq.gz
-    - name: case3
-      foreground:
-        read1: ./case3_foreground_read1.fastq.gz
-        read2: ./case3_foreground_read2.fastq.gz
-      background:
-        read1: ./case3_background_read1.fastq.gz
-        read2: ./case3_background_read2.fastq.gz
+    - id: paired_end_sample
+      read1: ./case1_read1.fastq.gz
+      read2: ./case1_read2.fastq.gz
+    - id: single_end_sample
+      read1: ./case2.fastq.gz
+    - id: foreground_paired_end_sample
+      read1: ./case3_tumor_read1.fastq.gz
+      read2: ./case3_tumor_read2.fastq.gz
+    - id: background_paired_end_sample
+      read1: ./case3_normal_read1.fastq.gz
+      read2: ./case3_normal_read2.fastq.gz
   fasta:
     reference: ./reference.fa.gz
 adapter:
   forward: AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT
   reverse: GATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG
+variant_calling:
+  unmatched:
+    - case1
+  matched:
+    - foreground: foreground_paired_end_sample
+      background: background_paired_end_sample
 command_args:
   fastqc:
     - --nogroup

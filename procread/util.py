@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from itertools import product
 import logging
 import os
 import re
@@ -144,10 +143,10 @@ def generate_param_config(yml_path, work_dir):
             'dir': dict([('work', wd)] + list(dir_dict.items())),
             'fastq': [
                 dict(
-                    [('name', d['name'])] +
+                    [('id', d['id'])] +
                     [
                         (
-                            '{0}_{1}'.format(t, r),
+                            r,
                             os.path.join(
                                 dir_dict['input'],
                                 re.sub(
@@ -155,14 +154,12 @@ def generate_param_config(yml_path, work_dir):
                                     '.{}.fastq.gz'.format(
                                         {'read1': 'r1', 'read2': 'r2'}[r]
                                     ),
-                                    os.path.basename(d[t][r])
+                                    os.path.basename(d[r])
                                 )
                             )
                         )
-                        for t, r
-                        in product(
-                            ['foreground', 'background'], ['read1', 'read2']
-                        )
+                        for r in ['read1', 'read2']
+                        if r in d
                     ]
                 )
                 for d in yml_dict['path']['fastq']

@@ -10,12 +10,9 @@ from .util import ProcreadRuntimeError, Shell
 def prepare_paths(cf, cpus):
     logger = logging.getLogger(__name__)
     output_files = [
-        d['{0}_{1}'.format(t, r)]
-        for d, t, r
-        in product(
-            cf['paths']['fastq'], ['foreground', 'background'],
-            ['read1', 'read2']
-        )
+        d[r]
+        for d, r
+        in product(cf['paths']['fastq'], ['read1', 'read2'])
     ] + [cf['paths']['ref']['fasta']]
     logger.debug('output_files: {}'.format(output_files))
     if all([os.path.isfile(p) for p in output_files]):
@@ -33,10 +30,10 @@ def prepare_paths(cf, cpus):
         sh.run('{} --version'.format(c))
 
     for src, dst in zip(cf['yml']['path']['fastq'], cf['paths']['fastq']):
-        for t, r in product(['foreground', 'background'], ['read1', 'read2']):
-            fq_dst = dst['{0}_{1}'.format(t, r)]
+        for r in ['read1', 'read2']:
+            fq_dst = dst[r]
             if not os.path.isfile(fq_dst):
-                fq_src = os.path.abspath(src[t][r])
+                fq_src = os.path.abspath(src[r])
                 fq_src_ext = os.path.splitext(fq_src)[1]
                 if fq_src_ext in ['.fastq', '.fq']:
                     sh.run(
@@ -81,15 +78,12 @@ def do_qc_checks(cf, cpus):
     output_files = [
         os.path.join(
             cf['paths']['dir']['qc'],
-            re.sub(
-                r'\.fastq\.gz$', s,
-                os.path.basename(d['{0}_{1}'.format(t, r)])
-            )
+            re.sub(r'\.fastq\.gz$', s, os.path.basename(d[r]))
         )
-        for d, t, r, s
+        for d, r, s
         in product(
-            cf['paths']['fastq'], ['foreground', 'background'],
-            ['read1', 'read2'], ['_fastqc.html', '_fastqc.zip']
+            cf['paths']['fastq'], ['read1', 'read2'],
+            ['_fastqc.html', '_fastqc.zip']
         )
     ]
     logger.debug('output_files: {}'.format(output_files))
@@ -103,13 +97,10 @@ def do_qc_checks(cf, cpus):
     sh = Shell(log_txt=os.path.join(cf['paths']['dir']['qc'], 'qc_log.txt'))
     sh.run('fastqc --version')
 
-    for d, t, r in product(cf['paths']['fastq'],
-                           ['foreground', 'background'],
-                           ['read1', 'read2']):
+    for d, r in product(cf['paths']['fastq'], ['read1', 'read2']):
         sh.run(
             'fastqc {0} --threads {1} --outdir {2} {3}'.format(
-                cf['cmd_args']['fastqc'], cpus, cf['paths']['dir']['qc'],
-                d['{0}_{1}'.format(t, r)]
+                cf['cmd_args']['fastqc'], cpus, cf['paths']['dir']['qc'], d[r]
             ),
             cwd=cf['paths']['dir']['qc'],
         )
@@ -125,11 +116,7 @@ def trim_adapters(cf, cpus):
                 os.path.basename(d['{0}_{1}'.format(t, r)])
             )
         )
-        for d, t, r
-        in product(
-            cf['paths']['fastq'], ['foreground', 'background'],
-            ['read1', 'read2']
-        )
+        for d, t, r in product(cf['paths']['fastq'], ['read1', 'read2'])
     ]
     logger.debug('output_files: {}'.format(output_files))
     if all([os.path.isfile(p) for p in output_files]):
@@ -151,19 +138,16 @@ def trim_adapters(cf, cpus):
                     cf['paths']['dir']['trim'],
                     re.sub(
                         r'(\.r[12]\.fastq\.gz)$', r'.trimmed\1',
-                        os.path.basename(d['{0}_{1}'.format(t, r)])
+                        os.path.basename(d[r])
                     )
                 )
                 for r in ['read1', 'read2']
             },
             'in': {
-                r: d['{0}_{1}'.format(t, r)] for r in ['read1', 'read2']
+                r: d[r] for r in ['read1', 'read2']
             }
         }
-        for d, t
-        in product(
-            cf['paths']['fastq'], ['foreground', 'background'],
-        )
+        for d in cf['paths']['fastq']
     ]
 
     sh.run([
@@ -205,15 +189,14 @@ def make_ref_index(cf):
 def map_reads(cf, cpus):
     logger = logging.getLogger(__name__)
     output_files = [
-        os.path.join(cf['paths']['dir']['map'], d['name'], f)
+        os.path.join(cf['paths']['dir']['map'], d['id'], f)
         for d, f
         in product(
             cf['paths']['fastq'],
             [
-                '{0}_{1}.bam{2}'.format(t, n, e)
-                for t, n, e
+                '{0}.bam{1}'.format(n, e)
+                for n, e
                 in product(
-                    ['foreground', 'background'],
                     ['sort', 'fixmate', 'markdup'],
                     ['', '.bai', '.idxstats.txt', '.flagstat.txt',
                      '.stats.txt']
@@ -229,7 +212,7 @@ def map_reads(cf, cpus):
         os.makedirs(cf['paths']['dir']['map'], exist_ok=True)
         for d in cf['paths']['fastq']:
             os.makedirs(
-                os.path.join(cf['paths']['dir']['map'], d['name']),
+                os.path.join(cf['paths']['dir']['map'], d['id']),
                 exist_ok=True
             )
 
@@ -240,7 +223,7 @@ def map_reads(cf, cpus):
 
     io = [
         {
-            'name': d['name'],
+            'id': d['id'],
             'fq': (
                 {
                     k: os.path.join(
@@ -255,14 +238,13 @@ def map_reads(cf, cpus):
                 if os.path.isdir(cf['paths']['dir']['trim']) else d
             ),
             'bam': {
-                '{0}_{1}.bam{2}'.format(t, n, e):
+                '{0}.bam{1}'.format(n, e):
                 os.path.join(
-                    cf['paths']['dir']['map'], d['name'],
+                    cf['paths']['dir']['map'], d['id'],
                     '{0}_{1}.bam{2}'.format(t, n, e)
                 )
-                for t, n, e
+                for n, e
                 in product(
-                    ['foreground', 'background'],
                     ['sort', 'fixmate', 'markdup'],
                     ['', '.bai', '.idxstats.txt', '.flagstat.txt',
                      '.stats.txt']
@@ -272,60 +254,58 @@ def map_reads(cf, cpus):
         for d in cf['paths']['fastq']
     ]
 
-    for d, t in product(io, ['foreground', 'background']):
-        if not os.path.isfile(d['bam'][t + '_sort.bam']):
+    for d in io:
+        if not os.path.isfile(d['bam']['sort.bam']):
             sh.run([
                 'bwa mem -t {0} {1} {2} {3} '
                 '| samtools view -@ {0} -bS - '
                 '| samtools sort -@ {0} -o {4} -'.format(
-                    cpus, cf['paths']['ref']['faidx'], d['fq'][t + '_read1'],
-                    d['fq'][t + '_read2'], d['bam'][t + '_sort.bam']
+                    cpus, cf['paths']['ref']['faidx'], d['fq']['read1'],
+                    d['fq']['read2'], d['bam']['sort.bam']
                 )
             ])
-        if not os.path.isfile(d['bam'][t + '_fixmate.bam']):
+        if not os.path.isfile(d['bam']['fixmate.bam']):
             sh.run([
                 'samtools sort -n -@ {0} {1} '
                 '| samtools fixmate -cm - {2}'.format(
-                    cpus, d['bam'][t + '_sort.bam'],
-                    d['bam'][t + '_fixmate.bam']
+                    cpus, d['bam']['sort.bam'], d['bam']['fixmate.bam']
                 )
             ])
-        if not os.path.isfile(d['bam'][t + '_markdup.bam']):
+        if not os.path.isfile(d['bam']['markdup.bam']):
             sh.run([
                 'samtools sort -@ {0} {1} '
                 '| samtools markdup -rs - {2}'.format(
-                    cpus, d['bam'][t + '_fixmate.bam'],
-                    d['bam'][t + '_markdup.bam']
+                    cpus, d['bam']['fixmate.bam'], d['bam']['markdup.bam']
                 )
             ])
 
     sh.run([
         'samtools index -@ {0} {1}'.format(
-            cpus, d['bam']['{0}_{1}.bam'.format(t, b)]
+            cpus, d['bam']['{}.bam'.format(b)]
         )
-        for d, t, b
-        in product(io, ['foreground', 'background'], ['sort', 'markdup'])
-        if not os.path.isfile(d['bam']['{0}_{1}.bam.bai'.format(t, b)])
+        for d, b
+        in product(io, ['sort', 'markdup'])
+        if not os.path.isfile(d['bam']['{}.bam.bai'.format(b)])
     ])
 
     sh.run_parallel([
         'samtools flagstat {0} > {1}'.format(
-            d['bam']['{0}_{1}.bam'.format(t, b)],
-            d['bam']['{0}_{1}.bam.{2}.txt'.format(t, b, c)]
+            d['bam']['{}.bam'.format(b)],
+            d['bam']['{0}.bam.{1}.txt'.format(b, c)]
         )
-        for d, t, b, c
+        for d, b, c
         in product(
-            io, ['foreground', 'background'], ['sort', 'fixmate', 'markdup'],
+            io, ['sort', 'fixmate', 'markdup'],
             ['idxstats', 'flagstat', 'stats']
         )
-        if not os.path.isfile(d['bam']['{0}_{1}.bam.{2}.txt'.format(t, b, c)])
+        if not os.path.isfile(d['bam']['{0}.bam.{1}.txt'.format(b, c)])
     ])
 
 
 def call_variants(cf):
     logger = logging.getLogger(__name__)
     output_files = [
-        os.path.join(cf['paths']['dir']['map'], d['name'], f)
+        os.path.join(cf['paths']['dir']['map'], d['id'], f)
         for d, f in product(cf['paths']['fastq'], ['raw.bcf', 'flt.vcf'])
     ]
     logger.debug('output_files: {}'.format(output_files))
@@ -336,7 +316,7 @@ def call_variants(cf):
         os.makedirs(cf['paths']['dir']['call'], exist_ok=True)
         for d in cf['paths']['fastq']:
             os.makedirs(
-                os.path.join(cf['paths']['dir']['call'], d['name']),
+                os.path.join(cf['paths']['dir']['call'], d['id']),
                 exist_ok=True
             )
 
@@ -350,15 +330,15 @@ def call_variants(cf):
         ' && bcftools view {3} | vcfutils.pl varFilter -D100 > {4}'.format(
             cf['paths']['ref']['fasta'],
             os.path.join(
-                cf['paths']['dir']['map'], d['name'],
+                cf['paths']['dir']['map'], d['id'],
                 'foreground_markdup.bam'
             ),
             os.path.join(
-                cf['paths']['dir']['map'], d['name'],
+                cf['paths']['dir']['map'], d['id'],
                 'background_markdup.bam'
             ),
-            os.path.join(cf['paths']['dir']['call'], d['name'], 'raw.bcf'),
-            os.path.join(cf['paths']['dir']['call'], d['name'], 'flt.vcf')
+            os.path.join(cf['paths']['dir']['call'], d['id'], 'raw.bcf'),
+            os.path.join(cf['paths']['dir']['call'], d['id'], 'flt.vcf')
         )
         for d in cf['paths']['fastq']
     ])
