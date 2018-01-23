@@ -241,7 +241,7 @@ def map_reads(cf, cpus):
                 '{0}.bam{1}'.format(n, e):
                 os.path.join(
                     cf['paths']['dir']['map'], d['id'],
-                    '{0}_{1}.bam{2}'.format(t, n, e)
+                    '{0}.bam{1}'.format(n, e)
                 )
                 for n, e
                 in product(
