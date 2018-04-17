@@ -19,5 +19,5 @@ test:
           find . -name '*.py' | xargs flake8
   after-steps:
     - slack-notifier:
-        url: $SLACK_WEBHOOK_URL
+        url: $SLACK_URL
         channel: $SLACK_CHANNEL
