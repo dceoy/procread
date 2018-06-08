@@ -70,8 +70,7 @@ RUN set -e \
       && Rscript /usr/local/src/gatk/scripts/docker/gatkbase/install_R_packages.R
 
 RUN set -e \
-      && ln -s /usr/bin/python3.6 /usr/local/bin/python3 \
-      && /usr/local/bin/python3 /tmp/get-pip.py \
+      && /usr/bin/python3 /tmp/get-pip.py \
       && pip install -U --no-cache-dir pip cutadapt \
       && pip install -U --no-cache-dir /tmp/procread \
       && rm -rf /tmp/*
