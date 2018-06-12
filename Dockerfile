@@ -1,6 +1,7 @@
 FROM ubuntu:latest
 
-ADD http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.7.zip /tmp/fastqc.zip
+ENV DEBIAN_FRONTEND noninteractive
+
 ADD https://github.com/lh3/bwa/archive/master.tar.gz /tmp/bwa.tar.gz
 ADD https://github.com/samtools/htslib/archive/master.tar.gz /tmp/htslib.tar.gz
 ADD https://github.com/samtools/samtools/archive/master.tar.gz /tmp/samtools.tar.gz
@@ -14,12 +15,17 @@ RUN set -e \
 RUN set -e \
       && apt-get -y update \
       && apt-get -y dist-upgrade \
-      && apt-get -y install autoconf gcc git default-jdk libbz2-dev liblzma-dev libncurses5-dev \
-                            libz-dev make pbzip2 pigz python python3 r-base unzip \
+      && apt-get -y install autoconf curl gcc git default-jdk libbz2-dev liblzma-dev \
+                            libncurses5-dev libz-dev make pbzip2 pigz python python3 r-base \
+                            unzip wget \
       && apt-get -y autoremove \
       && apt-get clean
 
+
 RUN set -e \
+      && curl -sS https://github.com/s-andrews/FastQC/releases/latest \
+        | sed -e 's/^.*"https:\/\/github.com\/[^\/]\+\/[^\/]\+\/releases\/tag\/\([^"]\+\)".*$/\1/' \
+        | xargs -i wget -L http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_{}.zip -O /tmp/fastqc.zip \
       && unzip -d /usr/local/src /tmp/fastqc.zip \
       && chmod +x /usr/local/src/FastQC/fastqc \
       && ln -s /usr/local/src/FastQC/fastqc /usr/local/bin/fastqc
@@ -59,20 +65,8 @@ RUN set -e \
       && make install
 
 RUN set -e \
-      && git clone --depth 1 https://github.com/broadinstitute/picard.git /usr/local/src/picard \
-      && cd /usr/local/src/picard \
-      && ./gradlew shadowJar
-
-RUN set -e \
-      && git clone --depth 1 https://github.com/broadinstitute/gatk.git /usr/local/src/gatk \
-      && cd /usr/local/src/gatk \
-      && ./gradlew localJar \
-      && Rscript /usr/local/src/gatk/scripts/docker/gatkbase/install_R_packages.R
-
-RUN set -e \
       && /usr/bin/python3 /tmp/get-pip.py \
-      && pip install -U --no-cache-dir pip cutadapt \
-      && pip install -U --no-cache-dir /tmp/procread \
+      && pip install -U --no-cache-dir pip cutadapt /tmp/procread \
       && rm -rf /tmp/*
 
 ENTRYPOINT ["procread"]

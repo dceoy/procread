@@ -11,5 +11,5 @@ services:
     user: ${UID}:${GID}
     image: dceoy/procread:latest
     volumes:
-      - .:/work
-    working_dir: /work
+      - .:/wd
+    working_dir: /wd
