@@ -1,3 +1,4 @@
+---
 path:
   fastq:
     - id: paired_end_sample
@@ -13,12 +14,10 @@ path:
       read2: ./case3_normal_read2.fastq.gz
   fasta:
     reference: ./reference.fa.gz
-adapter:
-  forward: AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT
-  reverse: GATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG
 variant_calling:
   unmatched:
-    - case1
+    - paired_end_sample
+    - single_end_sample
   matched:
     - foreground: foreground_paired_end_sample
       background: background_paired_end_sample
@@ -26,5 +25,7 @@ command_args:
   fastqc:
     - --nogroup
   cutadapt:
-    - --overlap 4
-    - --error-rate 0.1
+    - -a=AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT
+    - -A=GATCGGAAGAGCACACGTCTGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG
+    - --overlap=4
+    - --error-rate=0.1

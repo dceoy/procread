@@ -151,12 +151,10 @@ def trim_adapters(cf, cpus):
     ]
 
     sh.run([
-        'cutadapt {0} -a {1} -A {2} -o {3} -p {4} {5} {6}'.format(
-            cf['cmd_args']['cutadapt'], cpus, cf['yml']['adapter']['forward'],
-            cf['yml']['adapter']['reverse'], f['out']['read1'],
+        'cutadapt {0} -o {1} -p {2} {3} {4}'.format(
+            cf['cmd_args']['cutadapt'], cpus, f['out']['read1'],
             f['out']['read2'], f['in']['read1'], f['in']['read2']
-        )
-        for f in io
+        ) for f in io
         if not all([os.path.isfile(p) for p in f['out'].values()])
     ])
 
