@@ -14,12 +14,10 @@ setup(
     url='https://github.com/dceoy/procread',
     include_package_data=True,
     install_requires=[
-        'cutadapt',
-        'docopt',
-        'pyyaml'
+        'docker-compose', 'docopt', 'jinja2', 'pyyaml'
     ],
     entry_points={
-        'console_scripts': ['procread=procread.main:main']
+        'console_scripts': ['procread=procread.cli.main:main']
     },
     classifiers=[
         'Programming Language :: Python',

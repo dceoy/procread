@@ -1,1 +1,2 @@
-include procread/pread.yml
+recursive-include procread/static *
+include LICENSE

@@ -5,22 +5,11 @@ Processing tool for read-to-variant workflows in DNA-seq analyses
 
 [![wercker status](https://app.wercker.com/status/7fb703c37b40bee7d216d7d86f8eb7f2/m/master "wercker status")](https://app.wercker.com/project/byKey/7fb703c37b40bee7d216d7d86f8eb7f2)
 
-Dependencies:
-  - FastQC
-  - Cutadapt
-  - SAMtools
-  - BWA
-  - BCFtools
-
-Docker image
+Installation
 ------------
 
 ```sh
-# build using docker
-$ docker image build -t procread .
-
-# build using docker-compose
-$ docker-compose build
+$ pip install -U https://github.com/dceoy/procread/archive/master.tar.gz
 ```
 
 Usage
